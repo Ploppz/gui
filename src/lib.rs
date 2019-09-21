@@ -46,24 +46,12 @@ use std::fmt::Debug;
 
 pub use Position::*;
 
-#[derive(Default)]
-pub struct Gui<Id: Eq + Hash> {
-    screen: (i32, i32),
-    widgets: HashMap<Id, WidgetInternal<Id>>,
-
-    events: Vec<Event<Id>>,
-    // Working memory
-    positions: HashMap<Id, Option<(i32, i32)>>,
+pub enum Widget {
+    Button (Button),
 }
 
-// TODO NEXT: would like to give WidgetInternal to application
-// application needs to know whether it's a button, a _ or _ ...
-// Would be nice with polymorphism. I.e. let application implement `trait Render` for all widgets -
-// at least so as to itself call `render()` on any Box received from the lib. Consider it "user
-// data".
-//
 pub struct WidgetInternal<Id> {
-    pub widget: Box<dyn Widget>,
+    pub widget: Widget,
     /// Relative x position as declared
     x_pos: Position<Id>,
     /// Relative y position as declared
@@ -74,28 +62,35 @@ pub struct WidgetInternal<Id> {
     pub y: i32,
 }
 impl<Id> WidgetInternal<Id> {
-    pub fn new<W: Widget>(w: W, x: Position<Id>, y: Position<Id>) -> WidgetInternal<Id> {
+    pub fn new(widget: Widget, x: Position<Id>, y: Position<Id>) -> WidgetInternal<Id> {
         WidgetInternal {
-            widget: Box::new(w),
+            widget,
             x_pos: x,
             y_pos: y,
             x: 0,
             y: 0,
         }
     }
-}
-/// Geometry of a widget, for rendering
-enum Geometry {
-    Button {x: f32, }
-    // TODO: struct with x, y, w, h, id, type?
-}
-
-pub trait Widget: 'static {
-    /// x, y: of the widget
-    fn update(&mut self, input: &Input, x: i32, y: i32);
+    pub fn update(&mut self, input: &Input) {
+        match &self.widget {
+            Widget::Button (button) => {
+                // TODO
+            }
+        }
+    }
 }
 
+#[derive(Default)]
+pub struct Gui<Id: Eq + Hash> {
+    screen: (i32, i32),
+    pub widgets: HashMap<Id, WidgetInternal<Id>>,
 
+    events: Vec<Event<Id>>,
+    // Working memory
+    // (maybe weird solution, just to know in the current frame which positions have
+    // been updated and which not (look at `update_position`))
+    positions: HashMap<Id, Option<(i32, i32)>>,
+}
 
 impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
     pub fn update(&mut self, _input: &Input, screen_w: i32, screen_h: i32) {
@@ -136,16 +131,15 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
         let w = self.widgets.get_mut(&id).unwrap();
         w.x = x;
         w.y = y;
+        self.positions.insert(id, Some((x,y)));
     }
 
     pub fn collect_events(&mut self) -> Vec<Event<Id>> {
         std::mem::replace(&mut self.events, Vec::new())
     }
 
-    // pub fn collect_layout(&self) -> Vec<> {
-    // }
 
-    pub fn add_widget<W: Widget>(&mut self, id: Id, w: W, x: Position<Id>, y: Position<Id>) {
+    pub fn add_widget(&mut self, id: Id, w: Widget, x: Position<Id>, y: Position<Id>) {
         self.widgets.insert(id, WidgetInternal::new(w, x, y));
     }
 }
@@ -165,10 +159,14 @@ pub enum Event<Id> {
 }
 
 pub struct Button {
-    text: String,
-    w: i32,
-    h: i32,
-    state: ButtonState,
+    pub text: String,
+    pub w: i32,
+    pub h: i32,
+    pub state: ButtonState,
+}
+pub enum ButtonState {
+    Hover,
+    None,
 }
 impl Button {
     pub fn new(text: String, w: i32, h: i32) -> Button {
@@ -177,13 +175,8 @@ impl Button {
             text, w, h
         }
     }
-}
-impl Widget for Button {
-    fn update(&mut self, input: &Input, x: i32, y: i32) {
+    pub fn wrap(self) -> Widget {
+        Widget::Button (self)
     }
 }
 
-pub enum ButtonState {
-    Hover,
-    None,
-}
