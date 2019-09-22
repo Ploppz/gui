@@ -1,9 +1,9 @@
-/*
-- *ID* vs messaging
+/*!
+# Ideas
 
-- tying the creation of a widget to the usage of that widget's events/info?
-    Could have a macro that defines a widget, and generates an ID enum
-    usage:
+## Tying the creation of a widget to the usage of that widget's events/info
+Could have a macro that defines a widget, and generates an ID enum
+usage:
 
 ```
 mod my_widget {
@@ -26,17 +26,19 @@ fn main() {
 
 ```
 
-- several Gui<T> can be created  - each one a group of widgets (for example one menu, each with their own `enum` to identify stuffs
+
+# Several Gui<T> can be created
+-- each one a group of widgets (for example one menu, each with their own `enum` to identify stuffs
 
 Widgets
  - button
- - toggle button
+ - toggle button and/or checkboxes
  - slider
  - tree of stuffff (future- at which point we probably also want to deal more with tree structures of widgets)
 
-LATEST;
- - storing the abs pos in WidgetInternal
-
+TODO:
+ - where should origin of widgets be? configurable
+ - relative position: from center, start point, or start + width?
 */
 
 use input::Input;
@@ -46,6 +48,7 @@ use std::fmt::Debug;
 
 pub use Position::*;
 
+#[derive(Debug, Clone)]
 pub enum Widget {
     Button (Button),
 }
@@ -83,7 +86,7 @@ impl<Id> WidgetInternal<Id> {
 #[derive(Default)]
 pub struct Gui<Id: Eq + Hash> {
     screen: (i32, i32),
-    pub widgets: HashMap<Id, WidgetInternal<Id>>,
+    widgets: HashMap<Id, WidgetInternal<Id>>,
 
     events: Vec<Event<Id>>,
     // Working memory
@@ -92,28 +95,46 @@ pub struct Gui<Id: Eq + Hash> {
     positions: HashMap<Id, Option<(i32, i32)>>,
 }
 
+pub struct Updates<Id> {
+    pub positions: Vec<(Id, (i32, i32))>,
+    pub buttons: Vec<(Id, ButtonState)>,
+}
+
 impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
-    pub fn update(&mut self, _input: &Input, screen_w: i32, screen_h: i32) {
+    pub fn get_state(&self) -> Vec<(Id, (i32, i32), Widget)> {
+        self.widgets.iter()
+            .map(|(id, w)| (*id, (w.x, w.y), w.widget.clone()))
+            .collect::<Vec<_>>()
+    }
+    pub fn update(&mut self, _input: &Input, screen_w: i32, screen_h: i32) -> Updates<Id> {
         self.screen = (screen_w, screen_h);
         self.positions = HashMap::new();
 
         // Update positions
         let keys: Vec<Id> = self.widgets.keys().map(|id| id.clone()).collect::<Vec<_>>();
+        let mut updated_positions: Vec<(Id, (i32, i32))> = Vec::new();
         for id in keys {
-            self.update_position(id.clone());
+            self.update_position(id.clone(), &mut updated_positions);
         }
 
         // TODO: Update state based on input
+        
+        Updates {
+            positions: updated_positions,
+            buttons: Vec::new(), //TODO
+        }
     }
 
-    fn update_position(&mut self, id: Id) {
-        let WidgetInternal {widget: _, x_pos, y_pos, x: _, y: _} = self.widgets[&id];
+    /// `updated` is passed only to collect information about which widgets were updated with a new
+    /// position
+    fn update_position(&mut self, id: Id, updated: &mut Vec<(Id, (i32, i32))>) {
+        let WidgetInternal {widget: _, x_pos, y_pos, x: prev_x, y: prev_y} = self.widgets[&id];
         let x = match x_pos {
             Position::Pos (offset) => offset,
             Position::Neg (offset) => self.screen.0 - offset,
             Position::FromWidget (other_id, offset) => {
                 if let None = self.positions.get(&other_id) {
-                    self.update_position(other_id.clone());
+                    self.update_position(other_id.clone(), updated);
                 }
                 self.positions[&other_id].unwrap().0 + offset
             }
@@ -123,7 +144,7 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
             Position::Neg (offset) => self.screen.1 - offset,
             Position::FromWidget (other_id, offset) => {
                 if let None = self.positions[&other_id] {
-                    self.update_position(other_id);
+                    self.update_position(other_id, updated);
                 }
                 self.positions[&other_id].unwrap().1 + offset
             }
@@ -132,6 +153,10 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
         w.x = x;
         w.y = y;
         self.positions.insert(id, Some((x,y)));
+
+        if x != prev_x || y != prev_y {
+            updated.push((id, (x, y)));
+        }
     }
 
     pub fn collect_events(&mut self) -> Vec<Event<Id>> {
@@ -153,17 +178,20 @@ pub enum Position<Id> {
     FromWidget (Id, i32),
 }
 
+#[derive(Debug, Clone)]
 pub enum Event<Id> {
     ButtonPress (Id),
     Slider (Id, f32),
 }
 
+#[derive(Debug, Clone)]
 pub struct Button {
     pub text: String,
     pub w: i32,
     pub h: i32,
     pub state: ButtonState,
 }
+#[derive(Debug, Clone)]
 pub enum ButtonState {
     Hover,
     None,
