@@ -36,7 +36,10 @@ Widgets
  - slider
  - tree of stuffff (future- at which point we probably also want to deal more with tree structures of widgets)
 
-TODO:
+TODO next:
+ - draw text
+ - input changes button state (and application changes the color of the button)
+QUESTIONS:
  - where should origin of widgets be? configurable
  - relative position: from center, start point, or start + width?
 */

@@ -19,8 +19,8 @@ fn main() {
     // Create GUI
     let mut gui = Gui::default();
 
-    gui.add_widget(Button1, Button::new("B1".to_string(), 30, 30).wrap(), Pos(100), Pos(100));
-    gui.add_widget(Button2, Button::new("B2".to_string(), 30, 30).wrap(),
+    gui.add_widget(Button1, Button::new("B1".to_string(), 60, 30).wrap(), Pos(100), Pos(100));
+    gui.add_widget(Button2, Button::new("B2".to_string(), 60, 30).wrap(),
             FromWidget (Button1, 0), FromWidget (Button1, 100));
 
     let mut gui = GuiDrawer::new(gui, &mut vx);
@@ -55,13 +55,13 @@ mod gui_drawer {
     use std::hash::Hash;
     use std::ops::Deref;
     use std::fmt::Debug;
-    use gui::{Pos, FromWidget};
-    use gui::Gui;
+    use gui::{Gui, Widget};
     use cgmath::SquareMatrix;
 
     use vxdraw::{
         debtri::DebugTriangle,
         quads,
+        text,
         void_logger,
         ShowWindow,
         VxDraw,
@@ -69,6 +69,8 @@ mod gui_drawer {
     };
     use cgmath::Matrix4;
     use input::Input;
+
+    const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
     fn vx_transform(pos: (i32, i32), sw: i32, sh: i32) -> (f32, f32) {
         (pos.0 as f32 / sw as f32 * 2.0 - 1.0,
@@ -80,39 +82,60 @@ mod gui_drawer {
 
     struct Button {
         quad: quads::Handle,
+        text: text::Handle,
     }
     pub struct GuiDrawer<Id: Eq + Hash> {
         gui: Gui<Id>,
 
         // Handles to VxDraw
+        quads: quads::Layer,
+        text: text::Layer,
         buttons: HashMap<Id, Button>,
     }
     impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
-        pub fn new(gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
-            let mut g = GuiDrawer {
-                gui,
-                buttons: HashMap::new(),
-            };
+        pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
+            let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
+                .fixed_perspective(Matrix4::identity()));
+            let mut text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
+                .fixed_perspective(Matrix4::identity()));
+
+            let mut buttons = HashMap::new();
+
             let (sw, sh) = vx.get_window_size_in_pixels();
             let (sw, sh) = (sw as i32, sh as i32);
 
-            g.gui.update(&Input::default(), sw, sh);
-            let layer = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
-                .fixed_perspective(Matrix4::identity()));
+            gui.update(&Input::default(), sw, sh);
 
             // Initiate state
-            for (id, pos, widget) in g.gui.get_state() {
-                let quad = vx.quads().add(&layer, vxdraw::quads::Quad::new()
-                    .translation(vx_transform(pos, sw, sh))
-                    .width(vx_scale(60, sw))
-                    .height(vx_scale(30, sh)));
-                vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
-                println!("Quad pos={:?}  w={} h={}", vx_transform(pos, sw, sh), vx_scale(60, sw), vx_scale(30, sh));
-                g.buttons.insert(id, Button {
-                    quad,
-                });
+            for (id, pos, widget) in gui.get_state() {
+                match widget {
+                    Widget::Button (button) => {
+                        let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
+                            .translation(vx_transform(pos, sw, sh))
+                            .width(vx_scale(button.w, sw))
+                            .height(vx_scale(button.h, sh)));
+                        vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
+
+                        let text = vx.text().add(
+                            &text,
+                            &button.text,
+                            text::TextOptions::new()
+                                .font_size(30.0)
+                                .translation(vx_transform(pos, sw, sh))
+                        );
+                        buttons.insert(id, Button {
+                            quad,
+                            text,
+                        });
+                    }
+                }
             }
-            g
+            GuiDrawer {
+                gui,
+                quads,
+                text,
+                buttons,
+            }
         }
         pub fn update(&mut self, input: &Input, vxdraw: &mut VxDraw) {
             let (sw, sh) = vxdraw.get_window_size_in_pixels();
