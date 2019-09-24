@@ -42,7 +42,6 @@ enum WidgetId {
     Button1,
     Button2,
 }
-//TODO why do I need Default??
 impl Default for WidgetId {
     fn default() -> Self {
         WidgetId::Button1
