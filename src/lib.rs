@@ -51,13 +51,9 @@ use std::fmt::Debug;
 
 pub use Position::*;
 
-#[derive(Debug, Clone)]
-pub enum Widget {
-    Button (Button),
-}
 
-pub struct WidgetInternal<Id> {
-    pub widget: Widget,
+pub struct WidgetInternal<W: Widget,Id> {
+    pub widget: W,
     /// Relative x position as declared
     x_pos: Position<Id>,
     /// Relative y position as declared
@@ -67,8 +63,8 @@ pub struct WidgetInternal<Id> {
     /// Absolute y position as rendered
     pub y: i32,
 }
-impl<Id> WidgetInternal<Id> {
-    pub fn new(widget: Widget, x: Position<Id>, y: Position<Id>) -> WidgetInternal<Id> {
+impl<W: Widget, Id> WidgetInternal<W, Id> {
+    pub fn new(widget: W, x: Position<Id>, y: Position<Id>) -> WidgetInternal<W, Id> {
         WidgetInternal {
             widget,
             x_pos: x,
@@ -77,19 +73,21 @@ impl<Id> WidgetInternal<Id> {
             y: 0,
         }
     }
-    pub fn update(&mut self, input: &Input) {
-        match &self.widget {
-            Widget::Button (button) => {
-                // TODO
-            }
-        }
+    pub fn update(&mut self, input: &Input) -> W::Delta {
+        self.widget.update()
     }
 }
 
+trait Widget {
+    type Delta;
+    /// Mutate and return information about what has changed
+    fn update(&mut self) -> Self::Delta;
+}
+
 #[derive(Default)]
-pub struct Gui<Id: Eq + Hash> {
+pub struct Gui<W: Widget, Id: Eq + Hash> {
     screen: (i32, i32),
-    widgets: HashMap<Id, WidgetInternal<Id>>,
+    widgets: HashMap<Id, WidgetInternal<W, Id>>,
 
     events: Vec<Event<Id>>,
     // Working memory
@@ -103,13 +101,13 @@ pub struct Updates<Id> {
     pub buttons: Vec<(Id, ButtonState)>,
 }
 
-impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
-    pub fn get_state(&self) -> Vec<(Id, (i32, i32), Widget)> {
+impl<W: Widget+Clone, Id: Eq + Hash + Copy + Clone + Debug> Gui<W, Id> {
+    pub fn get_state(&self) -> Vec<(Id, (i32, i32), W)> {
         self.widgets.iter()
             .map(|(id, w)| (*id, (w.x, w.y), w.widget.clone()))
             .collect::<Vec<_>>()
     }
-    pub fn update(&mut self, _input: &Input, screen_w: i32, screen_h: i32) -> Updates<Id> {
+    pub fn update(&mut self, _input: &Input, screen_w: i32, screen_h: i32) -> Vec<W::Delta> {
         self.screen = (screen_w, screen_h);
         self.positions = HashMap::new();
 
@@ -167,7 +165,7 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> Gui<Id> {
     }
 
 
-    pub fn add_widget(&mut self, id: Id, w: Widget, x: Position<Id>, y: Position<Id>) {
+    pub fn add_widget(&mut self, id: Id, w: W, x: Position<Id>, y: Position<Id>) {
         self.widgets.insert(id, WidgetInternal::new(w, x, y));
     }
 }

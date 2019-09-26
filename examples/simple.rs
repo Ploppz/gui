@@ -1,5 +1,5 @@
 use gui::{Pos, FromWidget};
-use gui::{Gui, Button, Widget};
+use gui::{Gui, Button, Widget as WidgetT};
 
 
 use vxdraw::{debtri::DebugTriangle, void_logger, ShowWindow, VxDraw, Color};
@@ -19,9 +19,14 @@ fn main() {
     // Create GUI
     let mut gui = Gui::default();
 
-    gui.add_widget(Button1, Button::new("B1".to_string(), 60, 30).wrap(), Pos(100), Pos(100));
-    gui.add_widget(Button2, Button::new("B2".to_string(), 60, 30).wrap(),
-            FromWidget (Button1, 0), FromWidget (Button1, 100));
+    gui.add_widget(Button1,
+        Widget::Button(Button::new("B1".to_string(), 60, 30)),
+        Pos(100),
+        Pos(100));
+    gui.add_widget(Button2,
+        Widget::Button(Button::new("B2".to_string(), 60, 30)),
+        FromWidget (Button1, 0),
+        FromWidget (Button1, 100));
 
     let mut gui = GuiDrawer::new(gui, &mut vx);
 
@@ -46,6 +51,16 @@ impl Default for WidgetId {
     fn default() -> Self {
         WidgetId::Button1
     }
+}
+
+enum Widget {
+    Button (Button),
+    // Healthbar ...
+}
+impl WidgetT for Widget {
+    type Delta = Delta;
+}
+enum Delta {
 }
 
 mod gui_drawer {
