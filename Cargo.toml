@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 input = { path = "../universe/crates/input"}
+paste = "0.1.6"
 
 [dev-dependencies]
 vxdraw = "0.5"
