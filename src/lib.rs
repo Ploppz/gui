@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 
+pub use Placement::*;
+
 
 // START OF GENERIC ATTEMPT
 // Thoughts
@@ -21,6 +23,7 @@ use std::ops::{Deref, DerefMut};
 //
 // TODO NEXT
 // Actually need to map `State -> Delta`
+#[derive(Copy, Clone, Debug)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
@@ -61,7 +64,7 @@ macro_rules! impl_widget_data {
                             }
                         }
                         deltas
-                    } ),* )
+                    }, )* )
                 }
             }
         }
@@ -92,11 +95,97 @@ impl_widget_data!(0,1,2,);
 impl_widget_data!(0,1,);
 impl_widget_data!(0,);
 
+#[derive(Default)]
 pub struct Gui<Id: Eq + Hash, W: WidgetData<Id>> {
-    state: W::State,
+    pub state: W::State,
 }
+
 impl<Id: Eq + Hash, W: WidgetData<Id>> Gui<Id, W> {
-    fn update(&mut self, input: &Input) -> W::Delta {
+    pub fn update(&mut self, input: &Input) -> W::Delta {
         W::update(&mut self.state)
     }
+    fn update_position(&mut self, id: Id, updated: &mut Vec<(Id, (i32, i32))>) {
+        let WidgetInternal {widget: _, x_pos, y_pos, x: prev_x, y: prev_y} = self.widgets[&id];
+        let x = match x_pos {
+            Position::Pos (offset) => offset,
+            Position::Neg (offset) => self.screen.0 - offset,
+            Position::FromWidget (other_id, offset) => {
+                if let None = self.positions.get(&other_id) {
+                    self.update_position(other_id.clone(), updated);
+                }
+                self.positions[&other_id].unwrap().0 + offset
+            }
+        };
+        let y = match y_pos {
+            Position::Pos (offset) => offset,
+            Position::Neg (offset) => self.screen.1 - offset,
+            Position::FromWidget (other_id, offset) => {
+                if let None = self.positions[&other_id] {
+                    self.update_position(other_id, updated);
+                }
+                self.positions[&other_id].unwrap().1 + offset
+            }
+        };
+        let w = self.widgets.get_mut(&id).unwrap();
+        w.x = x;
+        w.y = y;
+        self.positions.insert(id, Some((x,y)));
+
+        if x != prev_x || y != prev_y {
+            updated.push((id, (x, y)));
+        }
+    }
 }
+
+
+#[derive(Copy, Clone)]
+pub enum Placement<Id> {
+    /// Relative from top left
+    Pos (i32),
+    /// Relative to screen from right or bottom
+    Neg (i32),
+    /// Relative to another widget
+    FromWidget (Id, i32),
+}
+
+#[derive(Debug, Clone)]
+pub struct Button {
+    pub text: String,
+    pub pos: Position,
+    pub w: i32,
+    pub h: i32,
+    pub state: ButtonState,
+}
+impl Deref for Button {
+    type Target = Position;
+    fn deref(&self) -> &Position {
+        &self.pos
+    }
+}
+impl DerefMut for Button {
+    fn deref_mut(&mut self) -> &mut Position {
+        &mut self.pos
+    }
+}
+#[derive(Debug, Clone)]
+pub enum ButtonState {
+    Hover,
+    None,
+}
+
+// EITHER
+pub struct ButtonDelta {
+    pub pos: Option<Position>,
+    pub w: Option<i32>,
+    pub h: Option<i32>,
+    pub state: Option<ButtonState>,
+}
+
+// OR
+enum ButtonDelta {
+    Pos (Position),
+    State {new: ButtonState},
+}
+
+
+

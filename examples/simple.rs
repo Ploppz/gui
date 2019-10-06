@@ -1,5 +1,5 @@
 use gui::{Pos, FromWidget};
-use gui::{Gui, Button, Widget as WidgetT};
+use gui::{Gui, Button, Widget};
 
 
 use vxdraw::{debtri::DebugTriangle, void_logger, ShowWindow, VxDraw, Color};
@@ -18,17 +18,17 @@ fn main() {
 
     // Create GUI
     let mut gui = Gui::default();
+    let mut gui = GuiDrawer::new(gui, &mut vx);
 
-    gui.add_widget(Button1,
+    gui.state.0.insert(Button1,
         Widget::Button(Button::new("B1".to_string(), 60, 30)),
         Pos(100),
         Pos(100));
-    gui.add_widget(Button2,
+    gui.state.0.insert(Button2,
         Widget::Button(Button::new("B2".to_string(), 60, 30)),
         FromWidget (Button1, 0),
         FromWidget (Button1, 100));
 
-    let mut gui = GuiDrawer::new(gui, &mut vx);
 
     loop {
         let prspect = vx.perspective_projection();
@@ -53,23 +53,13 @@ impl Default for WidgetId {
     }
 }
 
-enum Widget {
-    Button (Button),
-    // Healthbar ...
-}
-impl WidgetT for Widget {
-    type Delta = Delta;
-}
-enum Delta {
-}
-
 mod gui_drawer {
     use vxdraw::quads::Handle;
     use std::collections::HashMap;
     use std::hash::Hash;
     use std::ops::Deref;
     use std::fmt::Debug;
-    use gui::{Gui, Widget};
+    use gui::{self, Widget, Gui};
     use cgmath::SquareMatrix;
 
     use vxdraw::{
@@ -83,6 +73,8 @@ mod gui_drawer {
     };
     use cgmath::Matrix4;
     use input::Input;
+
+    type Widgets = (gui::Button,);
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
@@ -98,8 +90,9 @@ mod gui_drawer {
         quad: quads::Handle,
         text: text::Handle,
     }
+
     pub struct GuiDrawer<Id: Eq + Hash> {
-        gui: Gui<Id>,
+        gui: Gui<Id, Widgets>,
 
         // Handles to VxDraw
         quads: quads::Layer,
@@ -107,7 +100,7 @@ mod gui_drawer {
         buttons: HashMap<Id, Button>,
     }
     impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
-        pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
+        pub fn new(mut gui: Gui<Id, Widgets>, vx: &mut VxDraw) -> GuiDrawer<Id> {
             let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
                 .fixed_perspective(Matrix4::identity()));
             let mut text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
