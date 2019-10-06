@@ -45,11 +45,11 @@ pub trait WidgetData<Id: Eq + Hash> {
 macro_rules! impl_widget_data {
     ( $($ty: tt,)* ) => {
         paste::item! {
-            impl<Id: Eq + Hash + Clone, $( [<T $ty>] ),*> WidgetData<Id> for ( $( [<T $ty>] ),* )
+            impl<Id: Eq + Hash + Clone, $( [<T $ty>] ),*> WidgetData<Id> for ( $( [<T $ty>], )* )
             where $( [<T $ty>]: Widget ),*
             {
-                type Delta = ( $( HashMap<Id, [<T $ty>]::Delta> ),* );
-                type State = ( $( HashMap<Id, [<T $ty>]> ),* );
+                type Delta = ( $( HashMap<Id, [<T $ty>]::Delta>, )* );
+                type State = ( $( HashMap<Id, [<T $ty>]>, )* );
                 fn update(state: &mut Self::State) -> Self::Delta {
                     // TODO: call update on each tuple element.
                     // for each $ty, need a different index into the tuple
@@ -67,23 +67,30 @@ macro_rules! impl_widget_data {
         }
     }
 }
-macro_rules! rev {
-    (@ $mac:ident $(,$args:expr)* ; $a:expr               ; $($c:expr),* ) => (        $mac!($($args),* ; $a           $(,$c)* ) );
-    (@ $mac:ident $(,$args:expr)* ; $a:expr  $(,$b:expr)* ; $($c:expr),* ) => ( rev!(@ $mac $(,$args)*  ; $($b),* ; $a $(,$c)* ) );
-    (  $mac:ident $(,$args:expr)* ; $a:expr,                             ) => (        $mac!($($args),* ; $a                   ) );
-    (  $mac:ident $(,$args:expr)* ; $a:expr, $($b:expr,)*                ) => ( rev!(@ $mac $(,$args)*  ; $($b),* ; $a         ) );
-}
 
-macro_rules! impl_widget_data_for_tuples {
-    ( ) => { };
-    ( $first:tt, $($rest: tt),* ) => {
-        impl_widget_data!($first, $($rest,)*);
-        impl_widget_data_for_tuples!($($rest),*);
-    }
-}
 
 // impl_widget_data_for_tuples!(1,2,3,4,5,6,7,8,9,11,12,13,14,15,16,17,18,19,20);
-impl_widget_data_for_tuples!(2,1,0);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,13,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,12,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,11,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,10,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,9,);
+impl_widget_data!(0,1,2,3,4,5,6,7,8,);
+impl_widget_data!(0,1,2,3,4,5,6,7,);
+impl_widget_data!(0,1,2,3,4,5,6,);
+impl_widget_data!(0,1,2,3,4,5,);
+impl_widget_data!(0,1,2,3,4,);
+impl_widget_data!(0,1,2,3,);
+impl_widget_data!(0,1,2,);
+impl_widget_data!(0,1,);
+impl_widget_data!(0,);
 
 pub struct Gui<Id: Eq + Hash, W: WidgetData<Id>> {
     state: W::State,
