@@ -1,13 +1,28 @@
 use gui::{Pos, FromWidget};
-use gui::{Gui, Button, Widget};
+use gui::{Gui, Button};
 
 
-use vxdraw::{debtri::DebugTriangle, void_logger, ShowWindow, VxDraw, Color};
+use vxdraw::{void_logger, ShowWindow, VxDraw, Color};
 
-use cgmath::SquareMatrix;
-use cgmath::Matrix4;
-use input::Input;
+// use cgmath::SquareMatrix;
+// use cgmath::Matrix4;
+use winput::Input;
 use gui_drawer::GuiDrawer;
+
+#[macro_export]
+macro_rules! match_downcast_ref {
+    ( $any:expr, $( $bind:ident : $ty:ty => $arm:expr ),*, _ => $default:expr ) => (
+        $(
+            if $any.is::<$ty>() {
+                let $bind = $any.downcast_ref::<$ty>().unwrap();
+                $arm
+            } else
+        )*
+        {
+            $default
+        }
+    )
+}
 
 fn main() {
     let mut vx = VxDraw::new(void_logger(), ShowWindow::Enable);
@@ -18,16 +33,15 @@ fn main() {
 
     // Create GUI
     let mut gui = Gui::default();
-    let mut gui = GuiDrawer::new(gui, &mut vx);
 
-    gui.state.0.insert(Button1,
-        Widget::Button(Button::new("B1".to_string(), 60, 30)),
-        Pos(100),
-        Pos(100));
-    gui.state.0.insert(Button2,
-        Widget::Button(Button::new("B2".to_string(), 60, 30)),
+    gui.insert(Button1, Button::new("B1".to_string(), 60, 30),
+        Pos(100), Pos(100));
+    gui.insert(Button2, Button::new("B2".to_string(), 60, 30),
         FromWidget (Button1, 0),
         FromWidget (Button1, 100));
+
+    let mut gui = GuiDrawer::new(gui, &mut vx);
+    // TODO: make it possible to add widgets after creating GuiDrawer
 
 
     loop {
@@ -57,7 +71,7 @@ mod gui_drawer {
     use vxdraw::quads::Handle;
     use std::collections::HashMap;
     use std::hash::Hash;
-    use std::ops::Deref;
+    use std::ops::{Deref, DerefMut};
     use std::fmt::Debug;
     use gui::{self, Widget, Gui};
     use cgmath::SquareMatrix;
@@ -72,9 +86,7 @@ mod gui_drawer {
         Color
     };
     use cgmath::Matrix4;
-    use input::Input;
-
-    type Widgets = (gui::Button,);
+    use winput::Input;
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
@@ -92,7 +104,7 @@ mod gui_drawer {
     }
 
     pub struct GuiDrawer<Id: Eq + Hash> {
-        gui: Gui<Id, Widgets>,
+        gui: Gui<Id>,
 
         // Handles to VxDraw
         quads: quads::Layer,
@@ -100,7 +112,7 @@ mod gui_drawer {
         buttons: HashMap<Id, Button>,
     }
     impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
-        pub fn new(mut gui: Gui<Id, Widgets>, vx: &mut VxDraw) -> GuiDrawer<Id> {
+        pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
             let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
                 .fixed_perspective(Matrix4::identity()));
             let mut text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
@@ -114,11 +126,15 @@ mod gui_drawer {
             gui.update(&Input::default(), sw, sh);
 
             // Initiate state
-            for (id, pos, widget) in gui.get_state() {
-                match widget {
-                    Widget::Button (button) => {
+            for (id, w) in gui.widgets.iter() {
+                let pos = w.pos;
+                let widget = &w.widget;
+                match_downcast_ref! {widget,
+                    button: gui::Button => {
+                        println!("Adding button");
+                        println!("Pos: {:?}", widget.deref().deref());
                         let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
-                            .translation(vx_transform(pos, sw, sh))
+                            .translation(vx_transform((pos.x, pos.y), sw, sh))
                             .width(vx_scale(button.w, sw))
                             .height(vx_scale(button.h, sh)));
                         vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
@@ -128,13 +144,14 @@ mod gui_drawer {
                             &button.text,
                             text::TextOptions::new()
                                 .font_size(30.0)
-                                .translation(vx_transform(pos, sw, sh))
+                                .translation(vx_transform((pos.x, pos.y), sw, sh))
                         );
-                        buttons.insert(id, Button {
+                        buttons.insert(*id, Button {
                             quad,
                             text,
                         });
-                    }
+                    },
+                    _ => panic!("Unexpected Widget!")
                 }
             }
             GuiDrawer {
@@ -148,19 +165,18 @@ mod gui_drawer {
             let (sw, sh) = vxdraw.get_window_size_in_pixels();
             let (sw, sh) = (sw as i32, sh as i32);
 
-            let updates = self.gui.update(input, sw, sh);
-
-            // TODO: apply updates ..
-            for (id, pos) in updates.positions {
-            }
-            for (id, state) in updates.buttons {
-            }
+            self.gui.update(input, sw, sh)
         }
     }
     impl<Id: Eq + Hash> Deref for GuiDrawer<Id> {
         type Target = Gui<Id>;
         fn deref(&self) -> &Gui<Id> {
             &self.gui
+        }
+    }
+    impl<Id: Eq + Hash> DerefMut for GuiDrawer<Id> {
+        fn deref_mut(&mut self) -> &mut Gui<Id> {
+            &mut self.gui
         }
     }
 }

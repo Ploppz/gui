@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 winput = { path = "../universe/crates/winput"}
 paste = "0.1.6"
+mopa = "0.2.2"
 
 [dev-dependencies]
 vxdraw = "0.5"
