@@ -1,5 +1,7 @@
 use gui::{Pos, FromWidget};
 use gui::{Gui, Button};
+#[macro_use]
+extern crate derive_deref;
 
 
 use vxdraw::{void_logger, ShowWindow, VxDraw, Color};
@@ -103,7 +105,9 @@ mod gui_drawer {
         text: text::Handle,
     }
 
+    #[derive(Deref, DerefMut)]
     pub struct GuiDrawer<Id: Eq + Hash> {
+        #[deref_target]
         gui: Gui<Id>,
 
         // Handles to VxDraw
@@ -154,6 +158,7 @@ mod gui_drawer {
                     _ => panic!("Unexpected Widget!")
                 }
             }
+
             GuiDrawer {
                 gui,
                 quads,
@@ -161,22 +166,33 @@ mod gui_drawer {
                 buttons,
             }
         }
-        pub fn update(&mut self, input: &Input, vxdraw: &mut VxDraw) {
-            let (sw, sh) = vxdraw.get_window_size_in_pixels();
+        pub fn update(&mut self, input: &Input, vx: &mut VxDraw) {
+            let (sw, sh) = vx.get_window_size_in_pixels();
             let (sw, sh) = (sw as i32, sh as i32);
 
-            self.gui.update(input, sw, sh)
-        }
-    }
-    impl<Id: Eq + Hash> Deref for GuiDrawer<Id> {
-        type Target = Gui<Id>;
-        fn deref(&self) -> &Gui<Id> {
-            &self.gui
-        }
-    }
-    impl<Id: Eq + Hash> DerefMut for GuiDrawer<Id> {
-        fn deref_mut(&mut self) -> &mut Gui<Id> {
-            &mut self.gui
+            self.gui.update(input, sw, sh);
+
+            for (id, w) in self.gui.widgets.iter() {
+                let pos = w.pos;
+                let widget = &w.widget;
+                match_downcast_ref! {widget,
+                    button: gui::Button => {
+                        let element = &self.buttons[id];
+                        let w = vx_scale(button.w, sw);
+                        let h = vx_scale(button.h, sh);
+                        vx.quads().set_translation(&element.quad, vx_transform((pos.x, pos.y), sw, sh));
+                        vx.quads().set_deform(&element.quad, [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]);
+                        vx.text().set_translation(&element.text, vx_transform((pos.x, pos.y), sw, sh));
+                            // .width(vx_scale(button.w, sw))
+                            // .height(vx_scale(button.h, sh)));
+
+                    },
+                    _ => panic!("Unexpected Widget!")
+                }
+            }
+            
+            // Check if anything changed
+
         }
     }
 }

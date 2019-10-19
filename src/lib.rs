@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate mopa;
+#[macro_use]
+extern crate derive_deref;
 use winput::Input;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -7,7 +9,6 @@ use std::ops::{Deref, DerefMut};
 use mopa::Any;
 
 pub use Placement::*;
-
 
 #[derive(Copy, Clone)]
 pub enum Placement<Id> {
@@ -37,7 +38,9 @@ pub trait Widget: Any + std::fmt::Debug {
 mopafy!(Widget);
 
 
+#[derive(Deref, DerefMut)]
 pub struct WidgetInternal<Id> {
+    #[deref_target]
     pub widget: Box<dyn Widget>,
     pub pos: Position,
     /// Relative x position as declared
@@ -57,14 +60,20 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
     pub fn insert<W: Widget + 'static>(&mut self, id: Id, widget: W, place_x: Placement<Id>, place_y: Placement<Id>) {
         self.widgets.insert(id, WidgetInternal {widget: Box::new(widget), pos: Position::zero(), place_x, place_y});
     }
-    pub fn update(&mut self, _input: &Input, sw: i32, sh: i32) {
+    pub fn update(&mut self, input: &Input, sw: i32, sh: i32) {
         self.screen = (sw, sh);
-        let mut updated_positions = HashMap::new();
 
+        // Update positions
+        let mut updated_positions = HashMap::new();
         let ids: Vec<Id> = self.widgets.keys().cloned().collect();
-        for id in ids {
+        for id in &ids {
             let pos = self.update_position(id.clone(), &mut updated_positions);
             self.widgets.get_mut(&id).unwrap().pos = pos;
+        }
+
+        // Update each widget
+        for w in self.widgets.values_mut() {
+            w.update(input);
         }
     }
 
@@ -106,7 +115,6 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
 #[derive(Debug, Clone)]
 pub struct Button {
     pub text: String,
-    pub pos: Position,
     pub w: i32,
     pub h: i32,
     pub state: ButtonState,
@@ -115,7 +123,6 @@ impl Button {
     pub fn new(text: String, w: i32, h: i32) -> Button {
         Button {
             text,
-            pos: Position::zero(),
             w,
             h,
             state: ButtonState::None,
@@ -127,20 +134,11 @@ impl Widget for Button {
         // TODO
     }
 }
-impl Deref for Button {
-    type Target = Position;
-    fn deref(&self) -> &Position {
-        &self.pos
-    }
-}
-impl DerefMut for Button {
-    fn deref_mut(&mut self) -> &mut Position {
-        &mut self.pos
-    }
-}
+
 #[derive(Debug, Clone)]
 pub enum ButtonState {
     Hover,
     None,
 }
+
 
