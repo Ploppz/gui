@@ -87,7 +87,7 @@ mod gui_drawer {
         VxDraw,
         Color
     };
-    use cgmath::Matrix4;
+    use cgmath::{Matrix4, Vector3, Transform};
     use winput::Input;
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
@@ -116,11 +116,21 @@ mod gui_drawer {
         buttons: HashMap<Id, Button>,
     }
     impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
+        fn proj_matrix(vx: &mut VxDraw) -> Matrix4<f32> {
+            let (sw, sh) = vx.get_window_size_in_pixels();
+            let (sw, sh) = (sw as f32, sh as f32);
+            // transform (0,0) -> (-1,-1)
+            // transform (sw,sh) -> (1,1)
+            Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0))
+                * Matrix4::from_nonuniform_scale(2.0/sw, 2.0/sh, 1.0)
+        }
+
         pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
+            let proj_matrix = Self::proj_matrix(vx);
             let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
-                .fixed_perspective(Matrix4::identity()));
+                .fixed_perspective(proj_matrix));
             let mut text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
-                .fixed_perspective(Matrix4::identity()));
+                .fixed_perspective(proj_matrix));
 
             let mut buttons = HashMap::new();
 
@@ -138,9 +148,9 @@ mod gui_drawer {
                         println!("Adding button");
                         println!("Pos: {:?}", widget.deref().deref());
                         let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
-                            .translation(vx_transform((pos.x, pos.y), sw, sh))
-                            .width(vx_scale(button.w, sw))
-                            .height(vx_scale(button.h, sh)));
+                            .translation(pos.to_tuple())
+                            .width(button.w as f32)
+                            .height(button.h as f32));
                         vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
 
                         let text = vx.text().add(
@@ -148,7 +158,7 @@ mod gui_drawer {
                             &button.text,
                             text::TextOptions::new()
                                 .font_size(30.0)
-                                .translation(vx_transform((pos.x, pos.y), sw, sh))
+                                .translation(pos.to_tuple())
                         );
                         buttons.insert(*id, Button {
                             quad,
@@ -172,27 +182,20 @@ mod gui_drawer {
 
             self.gui.update(input, sw, sh);
 
+            let proj_matrix = Self::proj_matrix(vx);
+            vx.quads().set_perspective(&self.quads, Some(proj_matrix));
+            vx.text().set_perspective(&self.text, Some(proj_matrix));
+
             for (id, w) in self.gui.widgets.iter() {
                 let pos = w.pos;
                 let widget = &w.widget;
                 match_downcast_ref! {widget,
                     button: gui::Button => {
-                        let element = &self.buttons[id];
-                        let w = vx_scale(button.w, sw);
-                        let h = vx_scale(button.h, sh);
-                        vx.quads().set_translation(&element.quad, vx_transform((pos.x, pos.y), sw, sh));
-                        vx.quads().set_deform(&element.quad, [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]);
-                        vx.text().set_translation(&element.text, vx_transform((pos.x, pos.y), sw, sh));
-                            // .width(vx_scale(button.w, sw))
-                            // .height(vx_scale(button.h, sh)));
-
+                        // TODO
                     },
                     _ => panic!("Unexpected Widget!")
                 }
             }
-            
-            // Check if anything changed
-
         }
     }
 }

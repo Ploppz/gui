@@ -29,6 +29,9 @@ impl Position {
     pub fn zero() -> Position {
         Position {x: 0, y: 0}
     }
+    pub fn to_tuple(&self) -> (f32, f32) {
+        (self.x as f32, self.y as f32)
+    }
 }
 
 // impl for Button etc
