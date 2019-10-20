@@ -94,7 +94,6 @@ mod gui_drawer {
 
     const TEXT_SCALE: f32 = 1000.0;
     fn vx_transform_text(pos: Position, sw: i32, sh: i32) -> (f32, f32) {
-        println!("{:?}", pos);
         (pos.x as f32 * 2.0 / TEXT_SCALE, pos.y as f32 * 2.0 / TEXT_SCALE)
     }
 
