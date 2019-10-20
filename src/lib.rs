@@ -2,22 +2,21 @@
 extern crate mopa;
 #[macro_use]
 extern crate derive_deref;
-use winput::Input;
+use mopa::Any;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::{Deref, DerefMut};
-use mopa::Any;
+use winput::Input;
 
 pub use Placement::*;
 
 #[derive(Copy, Clone)]
 pub enum Placement<Id> {
     /// Relative from top left
-    Pos (i32),
+    Pos(i32),
     /// Relative to screen from right or bottom
-    Neg (i32),
+    Neg(i32),
     /// Relative to another widget
-    FromWidget (Id, i32),
+    FromWidget(Id, i32),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -27,9 +26,9 @@ pub struct Position {
 }
 impl Position {
     pub fn zero() -> Position {
-        Position {x: 0, y: 0}
+        Position { x: 0, y: 0 }
     }
-    pub fn to_tuple(&self) -> (f32, f32) {
+    pub fn to_tuple(self) -> (f32, f32) {
         (self.x as f32, self.y as f32)
     }
 }
@@ -39,7 +38,6 @@ pub trait Widget: Any + std::fmt::Debug {
     fn update(&mut self, _: &Input);
 }
 mopafy!(Widget);
-
 
 #[derive(Deref, DerefMut)]
 pub struct WidgetInternal<Id> {
@@ -52,7 +50,6 @@ pub struct WidgetInternal<Id> {
     place_y: Placement<Id>,
 }
 
-
 #[derive(Default)]
 pub struct Gui<Id: Eq + Hash> {
     pub widgets: HashMap<Id, WidgetInternal<Id>>,
@@ -60,8 +57,22 @@ pub struct Gui<Id: Eq + Hash> {
 }
 
 impl<Id: Eq + Hash + Clone> Gui<Id> {
-    pub fn insert<W: Widget + 'static>(&mut self, id: Id, widget: W, place_x: Placement<Id>, place_y: Placement<Id>) {
-        self.widgets.insert(id, WidgetInternal {widget: Box::new(widget), pos: Position::zero(), place_x, place_y});
+    pub fn insert<W: Widget + 'static>(
+        &mut self,
+        id: Id,
+        widget: W,
+        place_x: Placement<Id>,
+        place_y: Placement<Id>,
+    ) {
+        self.widgets.insert(
+            id,
+            WidgetInternal {
+                widget: Box::new(widget),
+                pos: Position::zero(),
+                place_x,
+                place_y,
+            },
+        );
     }
     pub fn update(&mut self, input: &Input, sw: i32, sh: i32) {
         self.screen = (sw, sh);
@@ -85,12 +96,16 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             return *pos;
         }
 
-        let WidgetInternal {ref place_x, ref place_y, ..} = self.widgets[&id];
+        let WidgetInternal {
+            ref place_x,
+            ref place_y,
+            ..
+        } = self.widgets[&id];
         let (place_x, place_y) = (place_x.clone(), place_y.clone());
         let x = match place_x {
-            Placement::Pos (offset) => offset,
-            Placement::Neg (offset) => self.screen.0 - offset,
-            Placement::FromWidget (other_id, offset) => {
+            Placement::Pos(offset) => offset,
+            Placement::Neg(offset) => self.screen.0 - offset,
+            Placement::FromWidget(other_id, offset) => {
                 if let Some(pos) = positions.get(&other_id) {
                     offset + pos.x
                 } else {
@@ -99,9 +114,9 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             }
         };
         let y = match place_y {
-            Placement::Pos (offset) => offset,
-            Placement::Neg (offset) => self.screen.1 - offset,
-            Placement::FromWidget (other_id, offset) => {
+            Placement::Pos(offset) => offset,
+            Placement::Neg(offset) => self.screen.1 - offset,
+            Placement::FromWidget(other_id, offset) => {
                 if let Some(pos) = positions.get(&other_id) {
                     offset + pos.y
                 } else {
@@ -109,11 +124,10 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 }
             }
         };
-        positions.insert(id, Position {x,y});
-        Position {x,y}
+        positions.insert(id, Position { x, y });
+        Position { x, y }
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Button {
@@ -143,5 +157,3 @@ pub enum ButtonState {
     Hover,
     None,
 }
-
-
