@@ -75,7 +75,7 @@ mod gui_drawer {
     use std::hash::Hash;
     use std::ops::{Deref, DerefMut};
     use std::fmt::Debug;
-    use gui::{self, Widget, Gui};
+    use gui::{self, Widget, Gui, Position};
     use cgmath::SquareMatrix;
 
     use vxdraw::{
@@ -92,12 +92,10 @@ mod gui_drawer {
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
-    fn vx_transform(pos: (i32, i32), sw: i32, sh: i32) -> (f32, f32) {
-        (pos.0 as f32 / sw as f32 * 2.0 - 1.0,
-         pos.1 as f32 / sh as f32 * 2.0 - 1.0)
-    }
-    fn vx_scale(x: i32, sw: i32) -> f32 {
-        x as f32 / sw as f32 * 2.0
+    const TEXT_SCALE: f32 = 1000.0;
+    fn vx_transform_text(pos: Position, sw: i32, sh: i32) -> (f32, f32) {
+        println!("{:?}", pos);
+        (pos.x as f32 * 2.0 / TEXT_SCALE, pos.y as f32 * 2.0 / TEXT_SCALE)
     }
 
     struct Button {
@@ -124,13 +122,20 @@ mod gui_drawer {
             Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0))
                 * Matrix4::from_nonuniform_scale(2.0/sw, 2.0/sh, 1.0)
         }
+        fn proj_matrix_text(vx: &mut VxDraw) -> Matrix4<f32> {
+            let (sw, sh) = vx.get_window_size_in_pixels();
+            let (sw, sh) = (sw as f32, sh as f32);
+            Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0))
+                * Matrix4::from_nonuniform_scale(TEXT_SCALE/sw, TEXT_SCALE/sh, 1.0)
+        }
 
         pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
-            let proj_matrix = Self::proj_matrix(vx);
+            let quad_matrix = Self::proj_matrix(vx);
+            let text_matrix = Self::proj_matrix_text(vx);
             let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
-                .fixed_perspective(proj_matrix));
+                .fixed_perspective(quad_matrix));
             let mut text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
-                .fixed_perspective(proj_matrix));
+                .fixed_perspective(text_matrix));
 
             let mut buttons = HashMap::new();
 
@@ -158,7 +163,8 @@ mod gui_drawer {
                             &button.text,
                             text::TextOptions::new()
                                 .font_size(30.0)
-                                .translation(pos.to_tuple())
+                                .translation(vx_transform_text(pos, sw, sh))
+                                .origin((0.5, 0.5))
                         );
                         buttons.insert(*id, Button {
                             quad,
@@ -182,16 +188,18 @@ mod gui_drawer {
 
             self.gui.update(input, sw, sh);
 
-            let proj_matrix = Self::proj_matrix(vx);
-            vx.quads().set_perspective(&self.quads, Some(proj_matrix));
-            vx.text().set_perspective(&self.text, Some(proj_matrix));
+            let quad_matrix = Self::proj_matrix(vx);
+            let text_matrix = Self::proj_matrix_text(vx);
+            vx.quads().set_perspective(&self.quads, Some(quad_matrix));
+            vx.text().set_perspective(&self.text, Some(text_matrix));
 
             for (id, w) in self.gui.widgets.iter() {
                 let pos = w.pos;
                 let widget = &w.widget;
                 match_downcast_ref! {widget,
                     button: gui::Button => {
-                        // TODO
+                        let element = &self.buttons[id];
+                        vx.text().set_translation(&element.text, vx_transform_text(pos, sw, sh));
                     },
                     _ => panic!("Unexpected Widget!")
                 }
