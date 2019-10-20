@@ -1,15 +1,14 @@
-use gui::{Pos, FromWidget};
-use gui::{Gui, Button};
+use gui::{Button, Gui};
+use gui::{FromWidget, Pos};
 #[macro_use]
 extern crate derive_deref;
 
-
-use vxdraw::{void_logger, ShowWindow, VxDraw, Color};
+use vxdraw::{void_logger, Color, ShowWindow, VxDraw};
 
 // use cgmath::SquareMatrix;
 // use cgmath::Matrix4;
-use winput::Input;
 use gui_drawer::GuiDrawer;
+use winput::Input;
 
 #[macro_export]
 macro_rules! match_downcast_ref {
@@ -28,23 +27,29 @@ macro_rules! match_downcast_ref {
 
 fn main() {
     let mut vx = VxDraw::new(void_logger(), ShowWindow::Enable);
-    vx.set_clear_color(Color::Rgba(0,0,0, 255));
-    
+    vx.set_clear_color(Color::Rgba(0, 0, 0, 255));
+
     // let world_layer = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
-        // .fixed_perspective(Matrix4::identity()));
+    // .fixed_perspective(Matrix4::identity()));
 
     // Create GUI
     let mut gui = Gui::default();
 
-    gui.insert(Button1, Button::new("B1".to_string(), 60, 30),
-        Pos(100), Pos(100));
-    gui.insert(Button2, Button::new("B2".to_string(), 60, 30),
-        FromWidget (Button1, 0),
-        FromWidget (Button1, 100));
+    gui.insert(
+        Button1,
+        Button::new("B1".to_string(), 60, 30),
+        Pos(100),
+        Pos(100),
+    );
+    gui.insert(
+        Button2,
+        Button::new("B2".to_string(), 60, 30),
+        FromWidget(Button1, 0),
+        FromWidget(Button1, 100),
+    );
 
     let mut gui = GuiDrawer::new(gui, &mut vx);
     // TODO: make it possible to add widgets after creating GuiDrawer
-
 
     loop {
         let prspect = vx.perspective_projection();
@@ -70,23 +75,17 @@ impl Default for WidgetId {
 }
 
 mod gui_drawer {
-    use std::collections::HashMap;
-    use std::hash::Hash;
-    use std::fmt::Debug;
-    use std::ops::Deref;
     use gui::{self, Gui};
+    use std::collections::HashMap;
+    use std::fmt::Debug;
+    use std::hash::Hash;
+    use std::ops::Deref;
 
-    use vxdraw::{
-        quads,
-        text,
-        VxDraw,
-        Color
-    };
     use cgmath::{Matrix4, Vector3};
+    use vxdraw::{quads, text, Color, VxDraw};
     use winput::Input;
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
-
 
     struct Button {
         quad: quads::Handle,
@@ -110,16 +109,19 @@ mod gui_drawer {
             // transform (0,0) -> (-1,-1)
             // transform (sw,sh) -> (1,1)
             Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0))
-                * Matrix4::from_nonuniform_scale(2.0/sw, 2.0/sh, 1.0)
+                * Matrix4::from_nonuniform_scale(2.0 / sw, 2.0 / sh, 1.0)
         }
 
         pub fn new(mut gui: Gui<Id>, vx: &mut VxDraw) -> GuiDrawer<Id> {
             let quad_matrix = Self::proj_matrix(vx);
             let text_matrix = Self::proj_matrix(vx);
-            let quads = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
-                .fixed_perspective(quad_matrix));
-            let text = vx.text().add_layer(DEJAVU, text::LayerOptions::new()
-                .fixed_perspective(text_matrix));
+            let quads = vx
+                .quads()
+                .add_layer(&vxdraw::quads::LayerOptions::new().fixed_perspective(quad_matrix));
+            let text = vx.text().add_layer(
+                DEJAVU,
+                text::LayerOptions::new().fixed_perspective(text_matrix),
+            );
 
             let mut buttons = HashMap::new();
 
