@@ -6,27 +6,28 @@ use mopa::Any;
 use std::collections::HashMap;
 use std::hash::Hash;
 use winput::Input;
+use cgmath::Matrix4;
 
 pub use Placement::*;
 
 #[derive(Copy, Clone)]
 pub enum Placement<Id> {
     /// Relative from top left
-    Pos(i32),
+    Pos(f32),
     /// Relative to screen from right or bottom
-    Neg(i32),
+    Neg(f32),
     /// Relative to another widget
-    FromWidget(Id, i32),
+    FromWidget(Id, f32),
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Position {
-    pub x: i32,
-    pub y: i32,
+    pub x: f32,
+    pub y: f32,
 }
 impl Position {
     pub fn zero() -> Position {
-        Position { x: 0, y: 0 }
+        Position { x: 0.0, y: 0.0 }
     }
     pub fn to_tuple(self) -> (f32, f32) {
         (self.x as f32, self.y as f32)
@@ -35,7 +36,7 @@ impl Position {
 
 // impl for Button etc
 pub trait Widget: Any + std::fmt::Debug {
-    fn update(&mut self, _: &Input);
+    fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32);
 }
 mopafy!(Widget);
 
@@ -53,7 +54,7 @@ pub struct WidgetInternal<Id> {
 #[derive(Default)]
 pub struct Gui<Id: Eq + Hash> {
     pub widgets: HashMap<Id, WidgetInternal<Id>>,
-    screen: (i32, i32),
+    screen: (f32, f32),
 }
 
 impl<Id: Eq + Hash + Clone> Gui<Id> {
@@ -74,7 +75,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             },
         );
     }
-    pub fn update(&mut self, input: &Input, sw: i32, sh: i32) {
+    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mx: f32, my: f32) {
         self.screen = (sw, sh);
 
         // Update positions
@@ -87,7 +88,8 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
 
         // Update each widget
         for w in self.widgets.values_mut() {
-            w.update(input);
+            let pos = w.pos;
+            w.update(input, pos.x, pos.y, mx, my);
         }
     }
 
@@ -132,12 +134,12 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
 #[derive(Debug, Clone)]
 pub struct Button {
     pub text: String,
-    pub w: i32,
-    pub h: i32,
+    pub w: f32,
+    pub h: f32,
     pub state: ButtonState,
 }
 impl Button {
-    pub fn new(text: String, w: i32, h: i32) -> Button {
+    pub fn new(text: String, w: f32, h: f32) -> Button {
         Button {
             text,
             w,
@@ -147,12 +149,20 @@ impl Button {
     }
 }
 impl Widget for Button {
-    fn update(&mut self, _input: &Input) {
-        // TODO
+    fn update(&mut self, input: &Input, x: f32, y: f32, mx: f32, my: f32) {
+        let (top, bot, right, left) = (y + self.h/2.0, y - self.h/2.0, x + self.w/2.0, x - self.w/2.0);
+        if my > bot && my < top && mx > left && mx < right {
+            self.state = ButtonState::Hover
+        } else {
+            self.state = ButtonState::None
+        }
+        // if input.is_mouse_button_toggled_up(winit::MouseButton::Left) {
+            // println!("HEY");
+        // }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ButtonState {
     Hover,
     None,
