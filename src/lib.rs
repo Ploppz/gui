@@ -43,12 +43,8 @@ pub trait Widget: Any + std::fmt::Debug {
 mopafy!(Widget);
 
 
-// TODO:
-// registering Press is easy
-// After Press is registered, we have to wait for mouse button release
-// As for Hover/Unhover: have to keep state of the previous `inside` for each widget
 pub enum WidgetEvent {
-    Press,
+    Press, // TODO
     Release,
     Hover,
     Unhover,

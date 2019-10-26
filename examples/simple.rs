@@ -1,11 +1,11 @@
-use gui::{Button, Gui, WidgetEvent};
+use gui::{Button, Gui};
 use gui::Placement::*;
 #[macro_use]
 extern crate derive_deref;
 
 use vxdraw::{void_logger, Color, ShowWindow, VxDraw};
 use winit::{
-    event_loop::{EventLoop, ControlFlow},
+    event_loop::ControlFlow,
     event::*,
 };
 
@@ -55,13 +55,13 @@ fn main() {
 
     gui.insert(
         Button1,
-        Button::new("B1".to_string(), 60.0, 30.0),
+        Button::new("B1".to_string()),
         Pos(100.0),
         Pos(100.0),
     );
     gui.insert(
         Button2,
-        Button::new("B2".to_string(), 60.0, 30.0),
+        Button::new("B2".to_string()),
         FromWidget(Button1, 0.0),
         FromWidget(Button1, 100.0),
     );
@@ -90,7 +90,7 @@ fn process_input(s: &mut Input, evt: Event<()>) {
                 s.register_key(&input);
             }
             WindowEvent::MouseWheel {
-                delta, modifiers, ..
+                delta, ..
             } => {
                 if let MouseScrollDelta::LineDelta(_, v) = delta {
                     s.register_mouse_wheel(v);
@@ -140,12 +140,8 @@ mod gui_drawer {
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
     struct Button {
-        prev_model: gui::Button,
         quad: quads::Handle,
         text: text::Handle,
-        w: f32,
-        h: f32,
-
     }
 
     #[derive(Deref, DerefMut)]
@@ -189,39 +185,35 @@ mod gui_drawer {
             let _ = gui.update(&Input::default(), sw, sh, (0.0, 0.0));
 
             // Initiate state
-            for (id, w) in gui.widgets.iter() {
-                let pos = w.pos;
-                let widget = &w.widget;
-                match_downcast_ref! {widget,
+            for (id, widget) in gui.widgets.iter_mut() {
+                let inner = &widget.widget;
+                match_downcast_ref! {inner,
                     button: gui::Button => {
                         println!("Adding button");
-                        println!("Pos: {:?}", widget.deref().deref());
+                        println!("Pos: {:?}", inner.deref().deref());
 
                         let text = vx.text().add(
                             &text,
                             &button.text,
                             text::TextOptions::new()
                                 .font_size(30.0)
-                                .translation(pos)
+                                .translation(widget.pos)
                                 .scale(300.0)
                                 .origin((0.5, 0.5))
                         );
 
                         let (tw, th) = vx.text().get_model_size(&text);
                         let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
-                            .translation(pos)
+                            .translation(widget.pos)
                             .width(tw + 6.0)
                             .height(th + 4.0));
                         vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
 
+                        widget.size = (tw, th);
+
                         buttons.insert(*id, Button {
-                            prev_model: gui::Button {
-                                text: String::new(),
-                            },
                             quad,
                             text,
-                            w: tw,
-                            h: th,
                         });
                     },
                     _ => panic!("Unexpected Widget!")
@@ -260,30 +252,6 @@ mod gui_drawer {
             let text_matrix = Self::proj_matrix(vx);
             vx.quads().set_perspective(&self.quads, Some(quad_matrix));
             vx.text().set_perspective(&self.text, Some(text_matrix));
-
-            // Updating render state: iterate gui state and see for each widget what has changed
-            // - also updates the model based on rendering (e.g. button width updated based on
-            // rendering of text)
-            for (id, widget) in self.gui.widgets.iter_mut() {
-                let pos = widget.pos;
-                let state = &mut widget.widget;
-                match_downcast_mut! {state,
-                    button: gui::Button => {
-                        // let (sw, _sh) = vx.get_window_size_in_pixels();
-                        let element = &mut self.buttons.get_mut(id).unwrap();
-
-                        // Update model size depending on recorded width of text
-                        widget.size.0 = element.w;
-                        widget.size.1 = element.h;
-
-
-                        // let w = vx.text().get_model_size(&element.text);
-                        // println!("Text width: {:?}", w);
-                        element.prev_model = button.clone();
-                    },
-                    _ => panic!("Unexpected Widget!")
-                }
-            }
         }
     }
 }

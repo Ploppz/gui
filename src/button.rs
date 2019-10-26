@@ -5,7 +5,7 @@ pub struct Button {
     pub text: String,
 }
 impl Button {
-    pub fn new(text: String, w: f32, h: f32) -> Button {
+    pub fn new(text: String) -> Button {
         Button {
             text,
         }
@@ -17,7 +17,7 @@ impl Widget for Button {
         let (top, bot, right, left) = (y + h/2.0, y - h/2.0, x + w/2.0, x - w/2.0);
         mouse.1 > bot && mouse.1 < top && mouse.0 > left && mouse.0 < right
     }
-    fn handle_event(&mut self, event: WidgetEvent) -> bool {
+    fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }
 }
