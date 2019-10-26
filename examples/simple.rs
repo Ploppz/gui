@@ -1,5 +1,5 @@
-use gui::{Button, Gui};
-use gui::{FromWidget, Pos};
+use gui::{Button, Gui, WidgetEvent};
+use gui::Placement::*;
 #[macro_use]
 extern crate derive_deref;
 
@@ -127,7 +127,7 @@ impl Default for WidgetId {
 }
 
 mod gui_drawer {
-    use gui::{self, Gui, ButtonState};
+    use gui::{Gui, WidgetEvent};
     use std::collections::HashMap;
     use std::fmt::Debug;
     use std::hash::Hash;
@@ -186,7 +186,7 @@ mod gui_drawer {
 
             // as long as we work with pixels we can pass through mouse pos
 
-            let _ = gui.update(&Input::default(), sw, sh, 0.0, 0.0);
+            let _ = gui.update(&Input::default(), sw, sh, (0.0, 0.0));
 
             // Initiate state
             for (id, w) in gui.widgets.iter() {
@@ -202,14 +202,14 @@ mod gui_drawer {
                             &button.text,
                             text::TextOptions::new()
                                 .font_size(30.0)
-                                .translation(pos.to_tuple())
+                                .translation(pos)
                                 .scale(300.0)
                                 .origin((0.5, 0.5))
                         );
 
                         let (tw, th) = vx.text().get_model_size(&text);
                         let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
-                            .translation(pos.to_tuple())
+                            .translation(pos)
                             .width(tw + 6.0)
                             .height(th + 4.0));
                         vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
@@ -217,9 +217,6 @@ mod gui_drawer {
                         buttons.insert(*id, Button {
                             prev_model: gui::Button {
                                 text: String::new(),
-                                w: 0.0,
-                                h: 0.0,
-                                state: ButtonState::None,
                             },
                             quad,
                             text,
@@ -243,15 +240,19 @@ mod gui_drawer {
             let (sw, sh) = (sw as f32, sh as f32);
             let mouse = input.get_mouse_position();
 
-            let events = self.gui.update(input, sw, sh, mouse.0, mouse.1);
+            let events = self.gui.update(input, sw, sh, mouse);
 
             // Handling events: iterate hashmap and downcast
             for (id, event) in events.iter() {
-                match_downcast_ref! {event,
-                    button_press: gui::ButtonPress => {
-                        println!("Button \"{:?}\" pressed", id);
-                    },
-                    _ => panic!("Unexpected Event!")
+                let element = &mut self.buttons.get_mut(id).unwrap();
+                match event {
+                    WidgetEvent::Press => println!("Button \"{:?}\" pressed", id),
+                    WidgetEvent::Hover =>
+                            vx.quads().set_solid_color(&element.quad, Color::Rgba (180,0,0, 255)),
+                    WidgetEvent::Unhover =>
+                            vx.quads().set_solid_color(&element.quad, Color::Rgba(128,128,128, 255)),
+
+                    _ => {}
                 }
             }
 
@@ -263,24 +264,18 @@ mod gui_drawer {
             // Updating render state: iterate gui state and see for each widget what has changed
             // - also updates the model based on rendering (e.g. button width updated based on
             // rendering of text)
-            for (id, w) in self.gui.widgets.iter_mut() {
-                let pos = w.pos;
-                let widget = &mut w.widget;
-                match_downcast_mut! {widget,
+            for (id, widget) in self.gui.widgets.iter_mut() {
+                let pos = widget.pos;
+                let state = &mut widget.widget;
+                match_downcast_mut! {state,
                     button: gui::Button => {
                         // let (sw, _sh) = vx.get_window_size_in_pixels();
                         let element = &mut self.buttons.get_mut(id).unwrap();
 
                         // Update model size depending on recorded width of text
-                        button.w = element.w;
-                        button.h = element.h;
+                        widget.size.0 = element.w;
+                        widget.size.1 = element.h;
 
-                        if button.state != element.prev_model.state {
-                            vx.quads().set_solid_color(&element.quad, match button.state {
-                                ButtonState::Hover => Color::Rgba (180,0,0, 255),
-                                ButtonState::None => Color::Rgba(128,128,128, 255),
-                            });
-                        }
 
                         // let w = vx.text().get_model_size(&element.text);
                         // println!("Text width: {:?}", w);

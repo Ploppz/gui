@@ -1,3 +1,8 @@
+//! # Notes and thoughts
+//!
+//! - In the future, we can have a `trait Event: Any` and let `Widget::handle_event` return
+//! `Box<dyn Event>` to support more custom/complex events than just the basic mouse events.
+
 #[macro_use]
 extern crate mopa;
 #[macro_use]
@@ -12,6 +17,7 @@ pub use button::*;
 pub use Placement::*;
 
 
+
 #[derive(Copy, Clone)]
 pub enum Placement<Id> {
     /// Relative from top left
@@ -22,37 +28,49 @@ pub enum Placement<Id> {
     FromWidget(Id, f32),
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
-}
-impl Position {
-    pub fn zero() -> Position {
-        Position { x: 0.0, y: 0.0 }
-    }
-    pub fn to_tuple(self) -> (f32, f32) {
-        (self.x as f32, self.y as f32)
-    }
-}
 
 pub trait Event: Any + std::fmt::Debug {}
 mopafy!(Event);
 
 pub trait Widget: Any + std::fmt::Debug {
-    fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
+    // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
+    // PROTOTYPING:
+    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc
+    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool;
+    /// Returns true if some internal state has changed
+    fn handle_event(&mut self, event: WidgetEvent) -> bool;
 }
 mopafy!(Widget);
+
+
+// TODO:
+// registering Press is easy
+// After Press is registered, we have to wait for mouse button release
+// As for Hover/Unhover: have to keep state of the previous `inside` for each widget
+pub enum WidgetEvent {
+    Press,
+    Release,
+    Hover,
+    Unhover,
+    /// Change to any internal state
+    Change,
+    // TODO: perhaps something to notify that position has changed
+}
 
 #[derive(Deref, DerefMut)]
 pub struct WidgetInternal<Id> {
     #[deref_target]
     pub widget: Box<dyn Widget>,
-    pub pos: Position,
+    pub pos: (f32, f32),
+    pub size: (f32, f32),
+
     /// Relative x position as declared
     place_x: Placement<Id>,
     /// Relative y position as declared
     place_y: Placement<Id>,
+
+    /// Keeps track of hover state in order to generate the right WidgetEvents
+    inside: bool,
 }
 
 #[derive(Default)]
@@ -73,13 +91,15 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             id,
             WidgetInternal {
                 widget: Box::new(widget),
-                pos: Position::zero(),
+                pos: (0.0, 0.0),
+                size: (0.0, 0.0), // TODO Widget::default_size()?
                 place_x,
                 place_y,
+                inside: false,
             },
         );
     }
-    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mx: f32, my: f32) -> HashMap<Id, Box<dyn Event>> {
+    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> HashMap<Id, WidgetEvent> {
         self.screen = (sw, sh);
 
         // Update positions
@@ -90,19 +110,40 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             self.widgets.get_mut(&id).unwrap().pos = pos;
         }
 
+        macro_rules! event {
+            ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {
+                {
+                let change = $widget.widget.handle_event($event);
+                if change {
+                    $events.insert($id.clone(), WidgetEvent::Change);
+                }
+                $events.insert($id.clone(), $event);
+                }
+            }
+        }
+
         // Update each widget
         let mut events = HashMap::new();
         for (id, w) in self.widgets.iter_mut() {
-            let pos = w.pos;
-            let event = w.update(input, pos.x, pos.y, mx, my);
-            if let Some(event) = event {
-                events.insert(id.clone(), event);
+            let now_inside = w.inside(w.pos, w.size, mouse);
+            let prev_inside = w.inside;
+
+            if now_inside && !prev_inside {
+                event!(WidgetEvent::Hover, (w, id, events))
+            } else if prev_inside && !now_inside {
+                event!(WidgetEvent::Unhover, (w, id, events))
             }
+            
+            w.inside = now_inside;
+
+            // TODO: input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) 
+            // etc
         }
         events
     }
 
-    fn update_position(&mut self, id: Id, positions: &mut HashMap<Id, Position>) -> Position {
+    fn update_position(&mut self, id: Id, positions: &mut HashMap<Id, (f32, f32)>) -> (f32, f32) {
+        // TODO: look at width, height for relative positions
         if let Some(pos) = positions.get(&id) {
             return *pos;
         }
@@ -118,9 +159,9 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             Placement::Neg(offset) => self.screen.0 - offset,
             Placement::FromWidget(other_id, offset) => {
                 if let Some(pos) = positions.get(&other_id) {
-                    offset + pos.x
+                    offset + pos.0
                 } else {
-                    offset + self.update_position(other_id.clone(), positions).x
+                    offset + self.update_position(other_id.clone(), positions).0
                 }
             }
         };
@@ -129,13 +170,13 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             Placement::Neg(offset) => self.screen.1 - offset,
             Placement::FromWidget(other_id, offset) => {
                 if let Some(pos) = positions.get(&other_id) {
-                    offset + pos.y
+                    offset + pos.1
                 } else {
-                    offset + self.update_position(other_id.clone(), positions).y
+                    offset + self.update_position(other_id.clone(), positions).1
                 }
             }
         };
-        positions.insert(id, Position { x, y });
-        Position { x, y }
+        positions.insert(id, (x, y));
+        (x, y)
     }
 }
