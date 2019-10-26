@@ -202,14 +202,16 @@ mod gui_drawer {
                                 .origin((0.5, 0.5))
                         );
 
-                        let (tw, th) = vx.text().get_model_size(&text);
+                        let text_size = vx.text().get_model_size(&text);
+                        let widget_size = (text_size.0 + 6.0, text_size.1 + 4.0);
+
                         let quad = vx.quads().add(&quads, vxdraw::quads::Quad::new()
                             .translation(widget.pos)
-                            .width(tw + 6.0)
-                            .height(th + 4.0));
+                            .width(widget_size.0)
+                            .height(widget_size.1));
                         vx.quads().set_solid_color(&quad, Color::Rgba(128,128,128, 255));
 
-                        widget.size = (tw, th);
+                        widget.size = widget_size;
 
                         buttons.insert(*id, Button {
                             quad,
