@@ -4,6 +4,10 @@ use gui::{FromWidget, Pos};
 extern crate derive_deref;
 
 use vxdraw::{void_logger, Color, ShowWindow, VxDraw};
+use winit::{
+    event_loop::{EventLoop, ControlFlow},
+    event::*,
+};
 
 // use cgmath::SquareMatrix;
 // use cgmath::Matrix4;
@@ -65,52 +69,49 @@ fn main() {
     let mut gui = GuiDrawer::new(gui, &mut vx);
     // TODO: make it possible to add widgets after creating GuiDrawer
     let mut input = Input::default();
-    let mut events = vx.events_loop().unwrap();
+    let events = vx.events_loop().unwrap();
 
-    loop {
+    events.run(move |evt, _, control_flow| {
         let prspect = vx.perspective_projection();
         vx.set_perspective(prspect);
 
-        process_input(&mut input, &mut events);
+        process_input(&mut input, evt);
         gui.update(&input, &mut vx);
 
         vx.draw_frame();
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
+        *control_flow = ControlFlow::Wait;
+    })
 }
-fn process_input(s: &mut Input, events: &mut winit::EventsLoop) {
-    use winit::*;
+fn process_input(s: &mut Input, evt: Event<()>) {
     s.prepare_for_next_frame();
-    events.poll_events(|evt| {
-        if let Event::WindowEvent { event, .. } = evt {
-            match event {
-                WindowEvent::KeyboardInput { input, .. } => {
-                    s.register_key(&input);
-                }
-                WindowEvent::MouseWheel {
-                    delta, modifiers, ..
-                } => {
-                    if let winit::MouseScrollDelta::LineDelta(_, v) = delta {
-                        s.register_mouse_wheel(v);
-                    }
-                }
-                WindowEvent::MouseInput {
-                    state,
-                    button,
-                    modifiers,
-                    ..
-                } => {
-                    let input = winput::MouseInput { state, modifiers };
-                    s.register_mouse_input(input, button);
-                }
-                WindowEvent::CursorMoved { position, .. } => {
-                    let pos: (i32, i32) = position.into();
-                    s.register_mouse_position(pos.0 as f32, pos.1 as f32);
-                }
-                _ => {}
+    if let Event::WindowEvent { event, .. } = evt {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => {
+                s.register_key(&input);
             }
+            WindowEvent::MouseWheel {
+                delta, modifiers, ..
+            } => {
+                if let MouseScrollDelta::LineDelta(_, v) = delta {
+                    s.register_mouse_wheel(v);
+                }
+            }
+            WindowEvent::MouseInput {
+                state,
+                button,
+                modifiers,
+                ..
+            } => {
+                let input = winput::MouseInput { state, modifiers };
+                s.register_mouse_input(input, button);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let pos: (i32, i32) = position.into();
+                s.register_mouse_position(pos.0 as f32, pos.1 as f32);
+            }
+            _ => {}
         }
-    });
+    }
 }
 
 use WidgetId::*;
@@ -185,7 +186,7 @@ mod gui_drawer {
 
             // as long as we work with pixels we can pass through mouse pos
 
-            gui.update(&Input::default(), sw, sh, 0.0, 0.0);
+            let _ = gui.update(&Input::default(), sw, sh, 0.0, 0.0);
 
             // Initiate state
             for (id, w) in gui.widgets.iter() {
@@ -242,13 +243,26 @@ mod gui_drawer {
             let (sw, sh) = (sw as f32, sh as f32);
             let mouse = input.get_mouse_position();
 
-            self.gui.update(input, sw, sh, mouse.0, mouse.1);
+            let events = self.gui.update(input, sw, sh, mouse.0, mouse.1);
+
+            // Handling events: iterate hashmap and downcast
+            for (id, event) in events.iter() {
+                match_downcast_ref! {event,
+                    button_press: gui::ButtonPress => {
+                        println!("Button \"{:?}\" pressed", id);
+                    },
+                    _ => panic!("Unexpected Event!")
+                }
+            }
 
             let quad_matrix = Self::proj_matrix(vx);
             let text_matrix = Self::proj_matrix(vx);
             vx.quads().set_perspective(&self.quads, Some(quad_matrix));
             vx.text().set_perspective(&self.text, Some(text_matrix));
 
+            // Updating render state: iterate gui state and see for each widget what has changed
+            // - also updates the model based on rendering (e.g. button width updated based on
+            // rendering of text)
             for (id, w) in self.gui.widgets.iter_mut() {
                 let pos = w.pos;
                 let widget = &mut w.widget;
