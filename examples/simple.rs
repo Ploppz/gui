@@ -44,7 +44,8 @@ macro_rules! match_downcast_mut {
 }
 
 fn main() {
-    let mut vx = VxDraw::new(void_logger(), ShowWindow::Enable);
+    let events = winit::event_loop::EventLoop::new();
+    let mut vx = VxDraw::new(void_logger(), ShowWindow::Enable, &events);
     vx.set_clear_color(Color::Rgba(0, 0, 0, 255));
 
     // let world_layer = vx.quads().add_layer(&vxdraw::quads::LayerOptions::new()
@@ -69,7 +70,6 @@ fn main() {
     let mut gui = GuiDrawer::new(gui, &mut vx);
     // TODO: make it possible to add widgets after creating GuiDrawer
     let mut input = Input::default();
-    let events = vx.events_loop().unwrap();
 
     events.run(move |evt, _, control_flow| {
         let prspect = vx.perspective_projection();
@@ -77,6 +77,8 @@ fn main() {
 
         process_input(&mut input, evt);
         gui.update(&input, &mut vx);
+
+        // Just to show how to handle events in the applications
 
         vx.draw_frame();
         *control_flow = ControlFlow::Wait;
@@ -136,18 +138,22 @@ mod gui_drawer {
     use cgmath::{Matrix4, Vector3};
     use vxdraw::{quads, text, Color, VxDraw};
     use winput::Input;
+    use std::collections::VecDeque;
 
     const DEJAVU: &[u8] = include_bytes!["../fonts/DejaVuSans.ttf"];
 
     struct Button {
         quad: quads::Handle,
         text: text::Handle,
+        hover: bool,
     }
 
     #[derive(Deref, DerefMut)]
     pub struct GuiDrawer<Id: Eq + Hash> {
         #[deref_target]
         gui: Gui<Id>,
+
+        events: VecDeque<(Id, WidgetEvent)>,
 
         // Handles to VxDraw
         quads: quads::Layer,
@@ -216,6 +222,7 @@ mod gui_drawer {
                         buttons.insert(*id, Button {
                             quad,
                             text,
+                            hover: false,
                         });
                     },
                     _ => panic!("Unexpected Widget!")
@@ -224,6 +231,7 @@ mod gui_drawer {
 
             GuiDrawer {
                 gui,
+                events: VecDeque::new(),
                 quads,
                 text,
                 buttons,
@@ -239,14 +247,15 @@ mod gui_drawer {
             // Handling events: iterate hashmap and downcast
             for (id, event) in events.iter() {
                 let element = &mut self.buttons.get_mut(id).unwrap();
-                match event {
-                    WidgetEvent::Press => println!("Button \"{:?}\" pressed", id),
-                    WidgetEvent::Hover =>
-                            vx.quads().set_solid_color(&element.quad, Color::Rgba (180,0,0, 255)),
-                    WidgetEvent::Unhover =>
-                            vx.quads().set_solid_color(&element.quad, Color::Rgba(128,128,128, 255)),
-
-                    _ => {}
+                self.events.push_back((*id, event.event));
+                if event.pressed {
+                    vx.quads().set_solid_color(&element.quad, Color::Rgba (0,180,0, 255));
+                } else {
+                    if event.hover {
+                        vx.quads().set_solid_color(&element.quad, Color::Rgba (180,0,0, 255));
+                    } else {
+                        vx.quads().set_solid_color(&element.quad, Color::Rgba(128,128,128, 255));
+                    }
                 }
             }
 

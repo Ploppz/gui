@@ -43,6 +43,7 @@ pub trait Widget: Any + std::fmt::Debug {
 mopafy!(Widget);
 
 
+#[derive(Copy, Clone, Debug)]
 pub enum WidgetEvent {
     Press, // TODO
     Release,
@@ -52,6 +53,13 @@ pub enum WidgetEvent {
     Change,
     // TODO: perhaps something to notify that position has changed
 }
+
+pub struct WidgetEventState {
+    pub hover: bool,
+    pub pressed: bool,
+    pub event: WidgetEvent,
+}
+
 
 #[derive(Deref, DerefMut)]
 pub struct WidgetInternal<Id> {
@@ -67,6 +75,7 @@ pub struct WidgetInternal<Id> {
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
+    pressed: bool,
 }
 
 #[derive(Default)]
@@ -92,10 +101,11 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 place_x,
                 place_y,
                 inside: false,
+                pressed: false,
             },
         );
     }
-    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> HashMap<Id, WidgetEvent> {
+    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> Vec<(Id, WidgetEventState)> {
         self.screen = (sw, sh);
 
         // Update positions
@@ -109,31 +119,45 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         macro_rules! event {
             ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {
                 {
-                let change = $widget.widget.handle_event($event);
-                if change {
-                    $events.insert($id.clone(), WidgetEvent::Change);
-                }
-                $events.insert($id.clone(), $event);
+                    let change = $widget.widget.handle_event($event);
+                    if change {
+                        $events.push(($id.clone(), WidgetEventState {
+                            pressed: $widget.pressed,
+                            hover: $widget.inside,
+                            event: WidgetEvent::Change,
+                        }));
+                    }
+                    $events.push(($id.clone(), WidgetEventState {
+                        pressed: $widget.pressed,
+                        hover: $widget.inside,
+                        event: $event,
+                    }));
                 }
             }
         }
 
         // Update each widget
-        let mut events = HashMap::new();
+        let mut events = Vec::new();
         for (id, w) in self.widgets.iter_mut() {
             let now_inside = w.inside(w.pos, w.size, mouse);
             let prev_inside = w.inside;
-
-            if now_inside && !prev_inside {
-                event!(WidgetEvent::Hover, (w, id, events))
-            } else if prev_inside && !now_inside {
-                event!(WidgetEvent::Unhover, (w, id, events))
-            }
-            
             w.inside = now_inside;
 
-            // TODO: input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) 
-            // etc
+            if now_inside && !prev_inside {
+                event!(WidgetEvent::Hover, (w, id, events));
+            } else if prev_inside && !now_inside {
+                event!(WidgetEvent::Unhover, (w, id, events));
+            }
+
+            if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left)  {
+                w.pressed = true;
+                event!(WidgetEvent::Press, (w, id, events));
+            }
+            if w.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
+                w.pressed = false;
+                event!(WidgetEvent::Release, (w, id, events));
+            }
+            // TODO release
         }
         events
     }
