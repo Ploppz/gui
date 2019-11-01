@@ -129,7 +129,7 @@ impl Default for WidgetId {
 }
 
 mod gui_drawer {
-    use gui::{Gui, WidgetEvent};
+    use gui::{Gui, WidgetEvent, Capture, WidgetEventState};
     use std::collections::HashMap;
     use std::fmt::Debug;
     use std::hash::Hash;
@@ -237,12 +237,12 @@ mod gui_drawer {
                 buttons,
             }
         }
-        pub fn update(&mut self, input: &Input, vx: &mut VxDraw) {
+        pub fn update(&mut self, input: &Input, vx: &mut VxDraw) -> (Vec<(Id, WidgetEventState)>, Capture) {
             let (sw, sh) = vx.get_window_size_in_pixels();
             let (sw, sh) = (sw as f32, sh as f32);
             let mouse = input.get_mouse_position();
 
-            let events = self.gui.update(input, sw, sh, mouse);
+            let (events, capture) = self.gui.update(input, sw, sh, mouse);
 
             // Handling events: iterate hashmap and downcast
             for (id, event) in events.iter() {
@@ -263,6 +263,7 @@ mod gui_drawer {
             let text_matrix = Self::proj_matrix(vx);
             vx.quads().set_perspective(&self.quads, Some(quad_matrix));
             vx.text().set_perspective(&self.text, Some(text_matrix));
+            (events, capture)
         }
     }
 }

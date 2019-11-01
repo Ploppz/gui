@@ -20,4 +20,11 @@ impl Widget for Button {
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }
+    fn captures(&self) -> Capture {
+        Capture {
+            mouse: true,
+            keyboard: false,
+        }
+    }
 }
+

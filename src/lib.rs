@@ -16,6 +16,9 @@ mod button;
 pub use button::*;
 pub use Placement::*;
 
+#[cfg(test)]
+mod test;
+
 
 
 #[derive(Copy, Clone)]
@@ -32,18 +35,33 @@ pub enum Placement<Id> {
 pub trait Event: Any + std::fmt::Debug {}
 mopafy!(Event);
 
-pub trait Widget: Any + std::fmt::Debug {
+pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
     // PROTOTYPING:
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc
     fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool;
     /// Returns true if some internal state has changed
     fn handle_event(&mut self, event: WidgetEvent) -> bool;
+
+    /// If true, this widget will stop mouse events and state to reach other parts of the
+    /// application.
+    fn captures(&self) -> Capture;
 }
 mopafy!(Widget);
 
+#[derive(Default, Debug, Copy, Clone)]
+pub struct Capture {
+    pub mouse: bool,
+    pub keyboard: bool,
+}
+impl std::ops::BitOrAssign for Capture {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.mouse |= rhs.mouse;
+        self.keyboard |= rhs.keyboard;
+    }
+}
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum WidgetEvent {
     Press, // TODO
     Release,
@@ -54,12 +72,12 @@ pub enum WidgetEvent {
     // TODO: perhaps something to notify that position has changed
 }
 
+#[derive(Clone, Debug)]
 pub struct WidgetEventState {
     pub hover: bool,
     pub pressed: bool,
     pub event: WidgetEvent,
 }
-
 
 #[derive(Deref, DerefMut)]
 pub struct WidgetInternal<Id> {
@@ -105,7 +123,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             },
         );
     }
-    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> Vec<(Id, WidgetEventState)> {
+    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> (Vec<(Id, WidgetEventState)>, Capture) {
         self.screen = (sw, sh);
 
         // Update positions
@@ -137,6 +155,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         }
 
         // Update each widget
+        let mut capture = Capture::default();
         let mut events = Vec::new();
         for (id, w) in self.widgets.iter_mut() {
             let now_inside = w.inside(w.pos, w.size, mouse);
@@ -149,6 +168,10 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 event!(WidgetEvent::Unhover, (w, id, events));
             }
 
+            if now_inside {
+                capture |= w.widget.captures();
+            }
+
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left)  {
                 w.pressed = true;
                 event!(WidgetEvent::Press, (w, id, events));
@@ -159,7 +182,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             }
             // TODO release
         }
-        events
+        (events, capture)
     }
 
     fn update_position(&mut self, id: Id, positions: &mut HashMap<Id, (f32, f32)>) -> (f32, f32) {
