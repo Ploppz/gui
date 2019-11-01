@@ -1,19 +1,15 @@
-use gui::*;
 use gui::Placement::*;
+use gui::*;
 #[macro_use]
 extern crate derive_deref;
 
 use vxdraw::{void_logger, Color, ShowWindow, VxDraw};
-use winit::{
-    event_loop::ControlFlow,
-    event::*,
-};
+use winit::{event::*, event_loop::ControlFlow};
 
 // use cgmath::SquareMatrix;
 // use cgmath::Matrix4;
 use gui::drawers::vxdraw::GuiDrawer;
 use winput::Input;
-
 
 fn main() {
     let events = winit::event_loop::EventLoop::new();
@@ -67,9 +63,7 @@ fn process_input(s: &mut Input, evt: Event<()>) {
             WindowEvent::KeyboardInput { input, .. } => {
                 s.register_key(&input);
             }
-            WindowEvent::MouseWheel {
-                delta, ..
-            } => {
+            WindowEvent::MouseWheel { delta, .. } => {
                 if let MouseScrollDelta::LineDelta(_, v) = delta {
                     s.register_mouse_wheel(v);
                 }

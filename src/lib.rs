@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use winput::Input;
 
-pub mod drawer;
 mod button;
+pub mod drawer;
 pub use button::*;
 mod toggle_button;
 pub use toggle_button::*;
@@ -22,8 +22,6 @@ pub use Placement::*;
 
 #[cfg(test)]
 mod test;
-
-
 
 #[derive(Copy, Clone)]
 pub enum Placement<Id> {
@@ -34,8 +32,6 @@ pub enum Placement<Id> {
     /// Relative to another widget
     FromWidget(Id, f32),
 }
-
-
 
 pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
@@ -125,7 +121,13 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
             },
         );
     }
-    pub fn update(&mut self, input: &Input, sw: f32, sh: f32, mouse: (f32, f32)) -> (Vec<(Id, WidgetEventState)>, Capture) {
+    pub fn update(
+        &mut self,
+        input: &Input,
+        sw: f32,
+        sh: f32,
+        mouse: (f32, f32),
+    ) -> (Vec<(Id, WidgetEventState)>, Capture) {
         self.screen = (sw, sh);
 
         // Update positions
@@ -137,23 +139,27 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         }
 
         macro_rules! event {
-            ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {
-                {
-                    let change = $widget.widget.handle_event($event);
-                    if change {
-                        $events.push(($id.clone(), WidgetEventState {
+            ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
+                let change = $widget.widget.handle_event($event);
+                if change {
+                    $events.push((
+                        $id.clone(),
+                        WidgetEventState {
                             pressed: $widget.pressed,
                             hover: $widget.inside,
                             event: WidgetEvent::Change,
-                        }));
-                    }
-                    $events.push(($id.clone(), WidgetEventState {
+                        },
+                    ));
+                }
+                $events.push((
+                    $id.clone(),
+                    WidgetEventState {
                         pressed: $widget.pressed,
                         hover: $widget.inside,
                         event: $event,
-                    }));
-                }
-            }
+                    },
+                ));
+            }};
         }
 
         // Update each widget
@@ -174,7 +180,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 capture |= w.widget.captures();
             }
 
-            if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left)  {
+            if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
                 w.pressed = true;
                 event!(WidgetEvent::Press, (w, id, events));
             }

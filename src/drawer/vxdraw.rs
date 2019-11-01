@@ -1,13 +1,16 @@
-use crate::{Gui, WidgetEvent, Capture, WidgetEventState, Button as GuiButton, ToggleButton as GuiToggleButton};
+use crate::{
+    Button as GuiButton, Capture, Gui, ToggleButton as GuiToggleButton, WidgetEvent,
+    WidgetEventState,
+};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::Deref;
 
 use cgmath::{Matrix4, Vector3};
+use std::collections::VecDeque;
 use vxdraw::{quads, text, Color, VxDraw};
 use winput::Input;
-use std::collections::VecDeque;
 
 const DEJAVU: &[u8] = include_bytes!["../../fonts/DejaVuSans.ttf"];
 
@@ -124,7 +127,11 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
             buttons,
         }
     }
-    pub fn update(&mut self, input: &Input, vx: &mut VxDraw) -> (Vec<(Id, WidgetEventState)>, Capture) {
+    pub fn update(
+        &mut self,
+        input: &Input,
+        vx: &mut VxDraw,
+    ) -> (Vec<(Id, WidgetEventState)>, Capture) {
         let (sw, sh) = vx.get_window_size_in_pixels();
         let (sw, sh) = (sw as f32, sh as f32);
         let mouse = input.get_mouse_position();
@@ -142,14 +149,18 @@ impl<Id: Eq + Hash + Copy + Clone + Debug> GuiDrawer<Id> {
             self.events.push_back((*id, event.event));
 
             match (event.pressed, event.hover, toggle_state) {
-                (true, _, _) =>
-                    vx.quads().set_solid_color(&element.quad, Color::Rgba (0,180,0, 255)),
-                (_, true, _) =>
-                    vx.quads().set_solid_color(&element.quad, Color::Rgba (180,0,0, 255)),
-                (_, _, true) =>
-                    vx.quads().set_solid_color(&element.quad, Color::Rgba (180,180,0, 255)),
-                _ =>
-                    vx.quads().set_solid_color(&element.quad, Color::Rgba(128,128,128, 255)),
+                (true, _, _) => vx
+                    .quads()
+                    .set_solid_color(&element.quad, Color::Rgba(0, 180, 0, 255)),
+                (_, true, _) => vx
+                    .quads()
+                    .set_solid_color(&element.quad, Color::Rgba(180, 0, 0, 255)),
+                (_, _, true) => vx
+                    .quads()
+                    .set_solid_color(&element.quad, Color::Rgba(180, 180, 0, 255)),
+                _ => vx
+                    .quads()
+                    .set_solid_color(&element.quad, Color::Rgba(128, 128, 128, 255)),
             }
         }
 
