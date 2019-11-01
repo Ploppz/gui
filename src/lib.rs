@@ -12,8 +12,12 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use winput::Input;
 
+pub mod drawer;
 mod button;
 pub use button::*;
+mod toggle_button;
+pub use toggle_button::*;
+
 pub use Placement::*;
 
 #[cfg(test)]
@@ -32,8 +36,6 @@ pub enum Placement<Id> {
 }
 
 
-pub trait Event: Any + std::fmt::Debug {}
-mopafy!(Event);
 
 pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;

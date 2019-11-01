@@ -13,7 +13,7 @@ mopa = "0.2.2"
 derive_deref = { git = "https://github.com/Ploppz/derive_deref.git" }
 winit = "0.20.0-alpha4"
 cgmath = "0.17.0"
+vxdraw = { path = "../vxdraw" } # TODO make a feature!
 
 [dev-dependencies]
-vxdraw = { path = "../vxdraw" }
 cgmath = "0.17.0"
