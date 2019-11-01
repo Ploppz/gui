@@ -1,17 +1,17 @@
 [package]
 name = "gui"
 version = "0.1.0"
-authors = ["Erlend Langseth <erlend.langseth@openanalytics.eu>"]
+authors = ["Erlend Langseth <3rlendhl@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winput = { path = "../universe/crates/winput"}
 paste = "0.1.6"
 mopa = "0.2.2"
 derive_deref = { git = "https://github.com/Ploppz/derive_deref.git" }
 winit = "0.20.0-alpha4"
+winput = { git = "https://github.com/Ploppz/winput.git"}
 cgmath = "0.17.0"
 
 [dev-dependencies]
