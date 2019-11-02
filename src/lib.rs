@@ -41,8 +41,8 @@ pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     /// Returns true if some internal state has changed
     fn handle_event(&mut self, event: WidgetEvent) -> bool;
 
-    /// If true, this widget will stop mouse events and state to reach other parts of the
-    /// application.
+    /// Returns information whether this widget will stop mouse events and state
+    /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 }
 mopafy!(Widget);
@@ -98,6 +98,7 @@ pub struct WidgetInternal<Id> {
 pub struct Gui<Id: Eq + Hash> {
     pub widgets: HashMap<Id, WidgetInternal<Id>>,
     screen: (f32, f32),
+    events: Vec<(Id, WidgetEventState)>,
 }
 
 impl<Id: Eq + Hash + Clone> Gui<Id> {
@@ -120,6 +121,17 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 pressed: false,
             },
         );
+    }
+    pub fn mark_change(&mut self, id: Id) {
+        let widget = &self.widgets[&id];
+        self.events.push((
+            id,
+            WidgetEventState {
+                pressed: widget.pressed,
+                hover: widget.inside,
+                event: WidgetEvent::Change,
+            },
+        ));
     }
     pub fn update(
         &mut self,
@@ -164,16 +176,15 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
 
         // Update each widget
         let mut capture = Capture::default();
-        let mut events = Vec::new();
         for (id, w) in self.widgets.iter_mut() {
             let now_inside = w.inside(w.pos, w.size, mouse);
             let prev_inside = w.inside;
             w.inside = now_inside;
 
             if now_inside && !prev_inside {
-                event!(WidgetEvent::Hover, (w, id, events));
+                event!(WidgetEvent::Hover, (w, id, self.events));
             } else if prev_inside && !now_inside {
-                event!(WidgetEvent::Unhover, (w, id, events));
+                event!(WidgetEvent::Unhover, (w, id, self.events));
             }
 
             if now_inside {
@@ -182,14 +193,16 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
 
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
                 w.pressed = true;
-                event!(WidgetEvent::Press, (w, id, events));
+                event!(WidgetEvent::Press, (w, id, self.events));
             }
             if w.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
                 w.pressed = false;
-                event!(WidgetEvent::Release, (w, id, events));
+                event!(WidgetEvent::Release, (w, id, self.events));
             }
             // TODO release
         }
+
+        let events = std::mem::replace(&mut self.events, vec![]);
         (events, capture)
     }
 
