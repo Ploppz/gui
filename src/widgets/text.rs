@@ -19,4 +19,7 @@ impl Widget for TextField {
             keyboard: false,
         }
     }
+    fn children(&mut self) -> Vec<&mut WidgetInternal> {
+        vec![]
+    }
 }

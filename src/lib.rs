@@ -16,18 +16,22 @@ mod widgets;
 
 pub use widgets::*;
 pub use Placement::*;
+pub use AbsPlacement::*;
 
 #[cfg(test)]
 mod test;
 
-#[derive(Copy, Clone)]
-pub enum Placement<Id> {
-    /// Relative from top left
+#[derive(Copy, Clone, Debug)]
+pub enum Placement {
+    /// Absolute position
+    Abs(AbsPlacement, AbsPlacement),
+    FloatVertical,
+    FloatHorizontal,
+}
+#[derive(Copy, Clone, Debug)]
+pub enum AbsPlacement {
     Pos(f32),
-    /// Relative to screen from right or bottom
     Neg(f32),
-    /// Relative to another widget
-    FromWidget(Id, f32),
 }
 
 pub trait Widget: Any + std::fmt::Debug + Send + Sync {
@@ -48,6 +52,8 @@ pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     /// Returns information whether this widget will stop mouse events and state
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
+
+    fn children(&mut self) -> Vec<&mut WidgetInternal>;
 
 }
 mopafy!(Widget);
@@ -82,26 +88,36 @@ pub struct WidgetEventState {
     pub event: WidgetEvent,
 }
 
-#[derive(Deref, DerefMut)]
-pub struct WidgetInternal<Id> {
+#[derive(Deref, DerefMut, Debug)]
+pub struct WidgetInternal {
     #[deref_target]
     pub widget: Box<dyn Widget>,
     pub pos: (f32, f32),
     pub size: (f32, f32),
 
-    /// Relative x position as declared
-    place_x: Placement<Id>,
-    /// Relative y position as declared
-    place_y: Placement<Id>,
+    /// Declarative placement (used to calculate position)
+    pub place: Placement,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
     pressed: bool,
 }
+impl WidgetInternal {
+    pub fn new<W: Widget>(widget: W, place: Placement) -> WidgetInternal {
+        WidgetInternal {
+            widget: Box::new(widget),
+            pos: (0.0, 0.0),
+            size: (10.0, 10.0), // TODO Widget::default_size()?
+            place,
+            inside: false,
+            pressed: false,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct Gui<Id: Eq + Hash> {
-    pub widgets: HashMap<Id, WidgetInternal<Id>>,
+    pub widgets: HashMap<Id, WidgetInternal>,
     screen: (f32, f32),
     events: Vec<(Id, WidgetEventState)>,
 }
@@ -111,21 +127,9 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         &mut self,
         id: Id,
         widget: W,
-        place_x: Placement<Id>,
-        place_y: Placement<Id>,
+        place: Placement,
     ) {
-        self.widgets.insert(
-            id,
-            WidgetInternal {
-                widget: Box::new(widget),
-                pos: (0.0, 0.0),
-                size: (0.0, 0.0), // TODO Widget::default_size()?
-                place_x,
-                place_y,
-                inside: false,
-                pressed: false,
-            },
-        );
+        self.widgets.insert(id, WidgetInternal::new(widget, place));
     }
     pub fn mark_change(&mut self, id: Id) {
         let widget = &self.widgets[&id];
@@ -148,12 +152,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         self.screen = (sw, sh);
 
         // Update positions
-        let mut updated_positions = HashMap::new();
-        let ids: Vec<Id> = self.widgets.keys().cloned().collect();
-        for id in &ids {
-            let pos = self.update_position(id.clone(), &mut updated_positions);
-            self.widgets.get_mut(&id).unwrap().pos = pos;
-        }
+        update_position(self.widgets.values_mut(), self.screen);
 
         macro_rules! event {
             ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
@@ -204,48 +203,36 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
                 w.pressed = false;
                 event!(WidgetEvent::Release, (w, id, self.events));
             }
-            // TODO release
         }
 
         let events = std::mem::replace(&mut self.events, vec![]);
         (events, capture)
     }
 
-    fn update_position(&mut self, id: Id, positions: &mut HashMap<Id, (f32, f32)>) -> (f32, f32) {
-        // TODO: look at width, height for relative positions
-        if let Some(pos) = positions.get(&id) {
-            return *pos;
-        }
-
-        let WidgetInternal {
-            ref place_x,
-            ref place_y,
-            ..
-        } = self.widgets[&id];
-        let (place_x, place_y) = (place_x.clone(), place_y.clone());
-        let x = match place_x {
-            Placement::Pos(offset) => offset,
-            Placement::Neg(offset) => self.screen.0 - offset,
-            Placement::FromWidget(other_id, offset) => {
-                if let Some(pos) = positions.get(&other_id) {
-                    offset + pos.0
-                } else {
-                    offset + self.update_position(other_id.clone(), positions).0
-                }
+}
+fn update_position<'a, I>(widgets: I, screen: (f32, f32))
+    where I: Iterator<Item=&'a mut WidgetInternal>
+{
+    // TODO: look at width, height for relative positions
+    let mut _pos = 0;
+    for widget in widgets {
+        // TODO relative/float placements
+        let pos = match widget.place {
+            Abs (x, y) => {
+                let x = match x {
+                    Pos (offset) => offset,
+                    Neg (offset) => screen.0 - offset,
+                };
+                let y = match y {
+                    Pos (offset) => offset,
+                    Neg (offset) => screen.1 - offset,
+                };
+                (x, y)
             }
+            _ => unimplemented!(),
         };
-        let y = match place_y {
-            Placement::Pos(offset) => offset,
-            Placement::Neg(offset) => self.screen.1 - offset,
-            Placement::FromWidget(other_id, offset) => {
-                if let Some(pos) = positions.get(&other_id) {
-                    offset + pos.1
-                } else {
-                    offset + self.update_position(other_id.clone(), positions).1
-                }
-            }
-        };
-        positions.insert(id, (x, y));
-        (x, y)
+        update_position(widget.widget.children().into_iter(), screen);
+        widget.pos = pos;
+        // TODO actually set pos on widget
     }
 }

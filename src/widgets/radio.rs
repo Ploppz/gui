@@ -20,6 +20,9 @@ impl Widget for Radio {
             keyboard: false,
         }
     }
+    fn children(&mut self) -> Vec<&mut WidgetInternal> {
+        vec![] // TODO radio buttons
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,11 +32,14 @@ pub struct RadioButton {
 }
 impl RadioButton {
     pub fn new(text: String) -> RadioButton {
-        RadioButton { text }
+        RadioButton {
+            text,
+            state: false,
+        }
     }
 }
 impl Widget for RadioButton {
-    fn handle_event(&mut self, _: WidgetEvent) -> bool {
+    fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {
             if !self.state {
                 self.state = true;
@@ -50,5 +56,8 @@ impl Widget for RadioButton {
             mouse: false,
             keyboard: false,
         }
+    }
+    fn children(&mut self) -> Vec<&mut WidgetInternal> {
+        vec![] // TODO text field
     }
 }

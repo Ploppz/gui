@@ -10,14 +10,14 @@ fn mouse_pressed() -> MouseInput {
 }
 fn single_button() -> Gui<u8> {
     let mut gui = Gui::default();
-    gui.insert(0u8, Button::new("B1".to_string()), Pos(100.0), Pos(100.0));
+    gui.insert(0u8, Button::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
     // NOTE: maybe a bad solution right now but size is (0.0, 0.0) by default because it depends on rendering
     gui.widgets.get_mut(&0).unwrap().size = (50.0, 50.0);
     gui
 }
 fn single_toggle_button() -> Gui<u8> {
     let mut gui = Gui::default();
-    gui.insert(0u8, ToggleButton::new("B1".to_string()), Pos(100.0), Pos(100.0));
+    gui.insert(0u8, ToggleButton::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
     gui.widgets.get_mut(&0).unwrap().size = (50.0, 50.0);
     gui
 }

@@ -1,12 +1,14 @@
 use crate::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Button {
-    pub text: String,
+    pub text: WidgetInternal,
 }
 impl Button {
     pub fn new(text: String) -> Button {
-        Button { text }
+        Button {
+            text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0)))
+        }
     }
 }
 impl Widget for Button {
@@ -19,16 +21,23 @@ impl Widget for Button {
             keyboard: false,
         }
     }
+    fn children(&mut self) -> Vec<&mut WidgetInternal> {
+        vec![&mut self.text]
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ToggleButton {
-    pub text: String,
+    pub text: WidgetInternal,
     pub state: bool,
 }
 impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
-        ToggleButton { text, state: false }
+        ToggleButton {
+            text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0))),
+            state: false,
+        }
+
     }
 }
 impl Widget for ToggleButton {
@@ -45,5 +54,8 @@ impl Widget for ToggleButton {
             mouse: true,
             keyboard: false,
         }
+    }
+    fn children(&mut self) -> Vec<&mut WidgetInternal> {
+        vec![&mut self.text]
     }
 }
