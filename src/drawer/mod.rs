@@ -4,4 +4,5 @@
 //!
 //! The following modules provide default drawers for when you just want to get something working
 //! (before starting thinking about the look). Each module supports one specific rendering backend.
-pub mod vxdraw;
+//! 
+//! (Currently there are none)

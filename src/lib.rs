@@ -12,12 +12,9 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use winput::Input;
 
-mod button;
-pub mod drawer;
-pub use button::*;
-mod toggle_button;
-pub use toggle_button::*;
+mod widgets;
 
+pub use widgets::*;
 pub use Placement::*;
 
 #[cfg(test)]
@@ -36,14 +33,22 @@ pub enum Placement<Id> {
 pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
     // PROTOTYPING:
-    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc
-    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool;
+    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
+    /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
+    /// is the very center of the widget. However, this is configurable in case a finer shape is
+    /// desired (e.g. round things).
+    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
+        let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
+        let (top, bot, right, left) = (y + h / 2.0, y - h / 2.0, x + w / 2.0, x - w / 2.0);
+        mouse.1 > bot && mouse.1 < top && mouse.0 > left && mouse.0 < right
+    }
     /// Returns true if some internal state has changed
     fn handle_event(&mut self, event: WidgetEvent) -> bool;
 
     /// Returns information whether this widget will stop mouse events and state
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
+
 }
 mopafy!(Widget);
 
