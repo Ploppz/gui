@@ -1,12 +1,15 @@
 use crate::*;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Button {
+    text_id: String,
     pub text: WidgetInternal,
 }
 impl Button {
     pub fn new(text: String) -> Button {
         Button {
+            text_id: Uuid::new_v4().to_string(),
             text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0)))
         }
     }
@@ -21,19 +24,21 @@ impl Widget for Button {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<&mut WidgetInternal> {
-        vec![&mut self.text]
+    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
+        vec![(&self.text_id, &mut self.text)]
     }
 }
 
 #[derive(Debug)]
 pub struct ToggleButton {
+    text_id: String,
     pub text: WidgetInternal,
     pub state: bool,
 }
 impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
         ToggleButton {
+            text_id: Uuid::new_v4().to_string(),
             text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0))),
             state: false,
         }
@@ -55,7 +60,7 @@ impl Widget for ToggleButton {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<&mut WidgetInternal> {
-        vec![&mut self.text]
+    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
+        vec![(&self.text_id, &mut self.text)]
     }
 }

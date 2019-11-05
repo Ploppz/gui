@@ -11,6 +11,7 @@ use mopa::Any;
 use std::collections::HashMap;
 use std::hash::Hash;
 use winput::Input;
+use uuid::Uuid;
 
 mod widgets;
 
@@ -21,18 +22,6 @@ pub use AbsPlacement::*;
 #[cfg(test)]
 mod test;
 
-#[derive(Copy, Clone, Debug)]
-pub enum Placement {
-    /// Absolute position
-    Abs(AbsPlacement, AbsPlacement),
-    FloatVertical,
-    FloatHorizontal,
-}
-#[derive(Copy, Clone, Debug)]
-pub enum AbsPlacement {
-    Pos(f32),
-    Neg(f32),
-}
 
 pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
@@ -53,85 +42,29 @@ pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children(&mut self) -> Vec<&mut WidgetInternal>;
+    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)>;
 
 }
 mopafy!(Widget);
 
-#[derive(Default, Debug, Copy, Clone)]
-pub struct Capture {
-    pub mouse: bool,
-    pub keyboard: bool,
-}
-impl std::ops::BitOrAssign for Capture {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.mouse |= rhs.mouse;
-        self.keyboard |= rhs.keyboard;
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum WidgetEvent {
-    Press, // TODO
-    Release,
-    Hover,
-    Unhover,
-    /// Change to any internal state
-    Change,
-    // TODO: perhaps something to notify that position has changed
-}
-
-#[derive(Clone, Debug)]
-pub struct WidgetEventState {
-    pub hover: bool,
-    pub pressed: bool,
-    pub event: WidgetEvent,
-}
-
-#[derive(Deref, DerefMut, Debug)]
-pub struct WidgetInternal {
-    #[deref_target]
-    pub widget: Box<dyn Widget>,
-    pub pos: (f32, f32),
-    pub size: (f32, f32),
-
-    /// Declarative placement (used to calculate position)
-    pub place: Placement,
-
-    /// Keeps track of hover state in order to generate the right WidgetEvents
-    inside: bool,
-    pressed: bool,
-}
-impl WidgetInternal {
-    pub fn new<W: Widget>(widget: W, place: Placement) -> WidgetInternal {
-        WidgetInternal {
-            widget: Box::new(widget),
-            pos: (0.0, 0.0),
-            size: (10.0, 10.0), // TODO Widget::default_size()?
-            place,
-            inside: false,
-            pressed: false,
-        }
-    }
-}
 
 #[derive(Default)]
-pub struct Gui<Id: Eq + Hash> {
-    pub widgets: HashMap<Id, WidgetInternal>,
+pub struct Gui {
+    pub widgets: HashMap<String, WidgetInternal>,
     screen: (f32, f32),
-    events: Vec<(Id, WidgetEventState)>,
+    events: Vec<(String, WidgetEventState)>,
 }
 
-impl<Id: Eq + Hash + Clone> Gui<Id> {
+impl Gui {
     pub fn insert<W: Widget + 'static>(
         &mut self,
-        id: Id,
+        id: String,
         widget: W,
         place: Placement,
     ) {
         self.widgets.insert(id, WidgetInternal::new(widget, place));
     }
-    pub fn mark_change(&mut self, id: Id) {
+    pub fn mark_change(&mut self, id: String) {
         let widget = &self.widgets[&id];
         self.events.push((
             id,
@@ -148,11 +81,11 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
-    ) -> (Vec<(Id, WidgetEventState)>, Capture) {
+    ) -> (Vec<(String, WidgetEventState)>, Capture) {
         self.screen = (sw, sh);
 
         // Update positions
-        update_position(self.widgets.values_mut(), self.screen);
+        update_position(self.widgets.values_mut().collect(), self.screen);
 
         macro_rules! event {
             ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
@@ -210,9 +143,7 @@ impl<Id: Eq + Hash + Clone> Gui<Id> {
     }
 
 }
-fn update_position<'a, I>(widgets: I, screen: (f32, f32))
-    where I: Iterator<Item=&'a mut WidgetInternal>
-{
+fn update_position(widgets: Vec<&mut WidgetInternal>, screen: (f32, f32)) {
     // TODO: look at width, height for relative positions
     let mut _pos = 0;
     for widget in widgets {
@@ -231,8 +162,77 @@ fn update_position<'a, I>(widgets: I, screen: (f32, f32))
             }
             _ => unimplemented!(),
         };
-        update_position(widget.widget.children().into_iter(), screen);
+        update_position(widget.widget.children().into_iter().map(|(id, w)| w).collect(), screen);
         widget.pos = pos;
-        // TODO actually set pos on widget
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum Placement {
+    /// Absolute position
+    Abs(AbsPlacement, AbsPlacement),
+    FloatVertical,
+    FloatHorizontal,
+}
+#[derive(Copy, Clone, Debug)]
+pub enum AbsPlacement {
+    Pos(f32),
+    Neg(f32),
+}
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum WidgetEvent {
+    Press,
+    Release,
+    Hover,
+    Unhover,
+    /// Change to any internal state
+    Change,
+    // TODO: perhaps something to notify that position has changed
+}
+
+#[derive(Clone, Debug)]
+pub struct WidgetEventState {
+    pub hover: bool,
+    pub pressed: bool,
+    pub event: WidgetEvent,
+}
+
+#[derive(Deref, DerefMut, Debug)]
+pub struct WidgetInternal {
+    #[deref_target]
+    pub widget: Box<dyn Widget>,
+    pub pos: (f32, f32),
+    pub size: (f32, f32),
+
+    /// Declarative placement (used to calculate position)
+    pub place: Placement,
+
+    /// Keeps track of hover state in order to generate the right WidgetEvents
+    inside: bool,
+    pressed: bool,
+}
+impl WidgetInternal {
+    pub fn new<W: Widget>(widget: W, place: Placement) -> WidgetInternal {
+        WidgetInternal {
+            widget: Box::new(widget),
+            pos: (0.0, 0.0),
+            size: (10.0, 10.0), // TODO Widget::default_size()?
+            place,
+            inside: false,
+            pressed: false,
+        }
+    }
+}
+
+
+#[derive(Default, Debug, Copy, Clone)]
+pub struct Capture {
+    pub mouse: bool,
+    pub keyboard: bool,
+}
+impl std::ops::BitOrAssign for Capture {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.mouse |= rhs.mouse;
+        self.keyboard |= rhs.keyboard;
     }
 }

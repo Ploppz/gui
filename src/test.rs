@@ -8,20 +8,20 @@ fn mouse_pressed() -> MouseInput {
         modifiers: ModifiersState::default(),
     }
 }
-fn single_button() -> Gui<u8> {
+fn single_button() -> Gui {
     let mut gui = Gui::default();
-    gui.insert(0u8, Button::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
+    gui.insert("B1".to_string(), Button::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
     // NOTE: maybe a bad solution right now but size is (0.0, 0.0) by default because it depends on rendering
-    gui.widgets.get_mut(&0).unwrap().size = (50.0, 50.0);
+    gui.widgets.get_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
-fn single_toggle_button() -> Gui<u8> {
+fn single_toggle_button() -> Gui {
     let mut gui = Gui::default();
-    gui.insert(0u8, ToggleButton::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
-    gui.widgets.get_mut(&0).unwrap().size = (50.0, 50.0);
+    gui.insert("B1".to_string(), ToggleButton::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
+    gui.widgets.get_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
-fn event_exists(events: &Vec<(u8, WidgetEventState)>, target: WidgetEvent) -> bool {
+fn event_exists(events: &Vec<(String, WidgetEventState)>, target: WidgetEvent) -> bool {
     events
         .iter()
         .find(|(_, event)| event.event == target)
@@ -46,9 +46,9 @@ fn test_mark_change() {
     let mut gui = single_toggle_button();
 
     // Manually change the toggle button
-    gui.widgets.get_mut(&0).unwrap().downcast_mut::<ToggleButton>().unwrap()
+    gui.widgets.get_mut("B1").unwrap().downcast_mut::<ToggleButton>().unwrap()
         .state = true;
-    gui.mark_change(0);
+    gui.mark_change("B1".into());
 
     let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
     assert_eq!(events.len(), 1);
