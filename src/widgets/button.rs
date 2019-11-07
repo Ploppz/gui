@@ -10,7 +10,7 @@ impl Button {
     pub fn new(text: String) -> Button {
         Button {
             text_id: Uuid::new_v4().to_string(),
-            text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0)))
+            text: WidgetInternal::new(TextField::new(text), Placement::fixed(0.0, 0.0))
         }
     }
 }
@@ -39,7 +39,7 @@ impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
         ToggleButton {
             text_id: Uuid::new_v4().to_string(),
-            text: WidgetInternal::new(TextField::new(text), Abs (Pos(0.0), Pos(0.0))),
+            text: WidgetInternal::new(TextField::new(text), Placement::fixed(0.0, 0.0)),
             state: false,
         }
 

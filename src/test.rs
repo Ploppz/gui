@@ -10,14 +10,14 @@ fn mouse_pressed() -> MouseInput {
 }
 fn single_button() -> Gui {
     let mut gui = Gui::default();
-    gui.insert("B1".to_string(), Button::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
+    gui.insert("B1".to_string(), Button::new("B1".to_string()), Placement::fixed(100.0, 100.0));
     // NOTE: maybe a bad solution right now but size is (0.0, 0.0) by default because it depends on rendering
     gui.widgets.get_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
 fn single_toggle_button() -> Gui {
     let mut gui = Gui::default();
-    gui.insert("B1".to_string(), ToggleButton::new("B1".to_string()), Abs (Pos(100.0), Pos(100.0)));
+    gui.insert("B1".to_string(), ToggleButton::new("B1".to_string()), Placement::fixed(100.0, 100.0));
     gui.widgets.get_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
@@ -48,7 +48,10 @@ fn test_mark_change() {
     // Manually change the toggle button
     gui.widgets.get_mut("B1").unwrap().downcast_mut::<ToggleButton>().unwrap()
         .state = true;
-    gui.mark_change("B1".into());
+
+    let button = gui.widgets.get_mut("B1").unwrap();
+    button.mark_change();
+    button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
     let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
     assert_eq!(events.len(), 1);
