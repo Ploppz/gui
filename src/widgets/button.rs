@@ -3,14 +3,12 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Button {
-    text_id: String,
-    pub text: WidgetInternal,
+    text: Widget,
 }
 impl Button {
     pub fn new(text: String) -> Button {
         Button {
-            text_id: Uuid::new_v4().to_string(),
-            text: WidgetInternal::new(TextField::new(text), Placement::fixed(0.0, 0.0))
+            text: Widget::new(Uuid::new_v4().to_string(), TextField::new(text), Placement::fixed(0.0, 0.0))
         }
     }
 }
@@ -24,8 +22,8 @@ impl Interactive for Button {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
-        vec![(&self.text_id, &mut self.text)]
+    fn children(&mut self) -> Vec<&mut Widget> {
+        vec![&mut self.text]
     }
     fn default_size_hint(&self) -> SizeHint {
         SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
@@ -34,15 +32,13 @@ impl Interactive for Button {
 
 #[derive(Debug)]
 pub struct ToggleButton {
-    text_id: String,
-    pub text: WidgetInternal,
+    pub text: Widget,
     pub state: bool,
 }
 impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
         ToggleButton {
-            text_id: Uuid::new_v4().to_string(),
-            text: WidgetInternal::new(TextField::new(text), Placement::fixed(0.0, 0.0)),
+            text: Widget::new(Uuid::new_v4().to_string(), TextField::new(text), Placement::fixed(0.0, 0.0)),
             state: false,
         }
 
@@ -63,7 +59,7 @@ impl Interactive for ToggleButton {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
-        vec![(&self.text_id, &mut self.text)]
+    fn children(&mut self) -> Vec<&mut Widget> {
+        vec![&mut self.text]
     }
 }

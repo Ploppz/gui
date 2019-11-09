@@ -19,7 +19,7 @@ impl Interactive for TextField {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
+    fn children(&mut self) -> Vec<&mut Widget> {
         vec![]
     }
 }

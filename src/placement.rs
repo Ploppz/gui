@@ -29,10 +29,10 @@ impl Placement {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Position {
-    x: f32,
-    y: f32,
-    x_anchor: Anchor,
-    y_anchor: Anchor,
+    pub x: f32,
+    pub y: f32,
+    pub x_anchor: Anchor,
+    pub y_anchor: Anchor,
 }
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {

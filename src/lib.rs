@@ -17,7 +17,7 @@ mod test;
 #[derive(Deref, DerefMut, Debug)]
 pub struct Widget {
     #[deref_target]
-    pub widget: Box<dyn Interactive>,
+    pub inner: Box<dyn Interactive>,
     pub pos: (f32, f32),
     pub size: (f32, f32),
 
@@ -42,7 +42,7 @@ pub struct Widget {
 impl Widget {
     pub fn new<W: Interactive>(id: String, widget: W, place: Placement) -> Widget {
         Widget {
-            widget: Box::new(widget),
+            inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
             place,
@@ -54,6 +54,9 @@ impl Widget {
             id
         }
     }
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
     /// Mark that some internal state has changed in this Widget.
     /// For use when an application itself wants to change state of a Widget - for example toggle a
     /// button in response to a key press. A `Change` event has to be registered so that the drawer
@@ -61,6 +64,7 @@ impl Widget {
     pub fn mark_change(&mut self) {
         self.changed = true;
     }
+    /// Update this widget tree recursively, returning accumulated events from all nodes
     pub fn update(
         &mut self,
         input: &Input,
@@ -68,10 +72,9 @@ impl Widget {
         sh: f32,
         mouse: (f32, f32),
     ) -> (Vec<(String, WidgetEventState)>, Capture) {
-
         macro_rules! event {
             ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
-                let change = $widget.widget.handle_event($event);
+                let change = $widget.inner.handle_event($event);
                 if change {
                     $events.push((
                         $id.clone(),
@@ -92,62 +95,98 @@ impl Widget {
                 ));
             }};
         }
-        // Update positions
-        update_position(self.children(), (sw, sh));
 
+        // Update children
         let mut events = Vec::new();
-        let children = self.children();
-
-        // Update each widget
         let mut capture = Capture::default();
-        for (id, w) in children {
-            let id = id.to_string();
-            let now_inside = w.inside(w.pos, w.size, mouse);
-            let prev_inside = w.inside;
-            w.inside = now_inside;
+        for child in self.children() {
+            let (child_events, child_capture) = child.update(input, sw, sh, mouse);
+            capture |= child_capture;
+            events.extend(child_events.into_iter());
+        }
+
+        // Update positions of children (and possibly size of self)
+        self.update_position((sw, sh));
+
+        if !capture.mouse {
+            let now_inside = self.inside(self.pos, self.size, mouse);
+            let prev_inside = self.inside;
+            self.inside = now_inside;
 
             if now_inside && !prev_inside {
-                event!(WidgetEvent::Hover, (w, id, events));
+                event!(WidgetEvent::Hover, (self, self.id, events));
             } else if prev_inside && !now_inside {
-                event!(WidgetEvent::Unhover, (w, id, events));
+                event!(WidgetEvent::Unhover, (self, self.id, events));
             }
 
             if now_inside {
-                capture |= w.widget.captures();
+                capture |= self.inner.captures();
             }
 
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
-                w.pressed = true;
-                event!(WidgetEvent::Press, (w, id, events));
+                self.pressed = true;
+                event!(WidgetEvent::Press, (self, self.id, events));
             }
-            if w.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
-                w.pressed = false;
-                event!(WidgetEvent::Release, (w, id, events));
-            }
-
-            if w.changed {
-
-                events.push((
-                    id.clone(),
-                    WidgetEventState {
-                        pressed: w.pressed,
-                        hover: w.inside,
-                        event: WidgetEvent::Change,
-                    },
-                ));
-                w.changed = false;
+            if self.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
+                self.pressed = false;
+                event!(WidgetEvent::Release, (self, self.id, events));
             }
         }
 
-        let events = std::mem::replace(&mut events, vec![]);
+        if self.changed {
+            events.push((
+                self.id.clone(),
+                WidgetEventState {
+                    pressed: self.pressed,
+                    hover: self.inside,
+                    event: WidgetEvent::Change,
+                },
+            ));
+            self.changed = false;
+        }
+
         (events, capture)
+    }
+
+    /// Not recursive - only updates the position of children.
+    /// (and updates size of `self` if applicable)
+    fn update_position(&mut self, screen: (f32, f32)) {
+        let children = self.children();
+        let mut float_progress = 0.0;
+        // TODO: look at width, height for relative positions
+        for widget in children {
+            let pos = match widget.place {
+                Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
+                    match x_anchor {
+                        Anchor::Min => x,
+                        Anchor::Max => screen.0 - x,
+                        Anchor::Center => unimplemented!(),
+                    },
+
+                    match y_anchor {
+                        Anchor::Min => y,
+                        Anchor::Max => screen.1 - y,
+                        Anchor::Center => unimplemented!(),
+                    }),
+                Placement::Float (axis, anchor) => {
+                    if let (Axis::X, Anchor::Min) = (axis, anchor) {
+                        float_progress += widget.size.0;
+                        (float_progress - widget.size.0 / 2.0, 0.0)
+                    } else {
+                        unimplemented!();
+                    }
+                }
+                Placement::Percentage (_x, _y) => unimplemented!(),
+            };
+            widget.pos = pos;
+        }
     }
 
 }
 
 
 
-// TODO move to `widget` module. Problem with MOPA
+// TODO move to its own module. Problem with MOPA
 /// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.
@@ -168,7 +207,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children(&mut self) -> Vec<(&str, &mut Widget)>;
+    fn children(&mut self) -> Vec<&mut Widget>;
 
     /// Default size hint for this widget type. Defaults to `SizeHint::None`
     fn default_size_hint(&self) -> SizeHint {
@@ -181,37 +220,6 @@ mopafy!(Interactive);
 
 
 
-fn update_position(widgets: Vec<(&str, &mut Widget)>, screen: (f32, f32)) {
-    let mut float_progress = 0.0;
-    // TODO: look at width, height for relative positions
-    for (_id, widget) in widgets {
-        // TODO relative/float placements
-        let pos = match widget.place {
-            Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
-                match x_anchor {
-                    Anchor::Min => x,
-                    Anchor::Max => screen.0 - x,
-                    Anchor::Center => unimplemented!(),
-                },
-
-                match y_anchor {
-                    Anchor::Min => y,
-                    Anchor::Max => screen.1 - y,
-                    Anchor::Center => unimplemented!(),
-                }),
-            Placement::Float (axis, anchor) => {
-                if let (Axis::X, Anchor::Min) = (axis, anchor) {
-                    float_progress += widget.size.0;
-                    (float_progress - widget.size.0 / 2.0, 0.0)
-                } else {
-                    unimplemented!();
-                }
-            }
-            Placement::Percentage (x, y) => unimplemented!(),
-        };
-        widget.pos = pos;
-    }
-}
 
 
 #[derive(Clone, Debug)]
