@@ -9,7 +9,7 @@ impl TextField {
         TextField { text }
     }
 }
-impl Widget for TextField {
+impl Interactive for TextField {
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }

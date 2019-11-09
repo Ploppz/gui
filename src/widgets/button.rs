@@ -14,7 +14,7 @@ impl Button {
         }
     }
 }
-impl Widget for Button {
+impl Interactive for Button {
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }
@@ -26,6 +26,9 @@ impl Widget for Button {
     }
     fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
         vec![(&self.text_id, &mut self.text)]
+    }
+    fn default_size_hint(&self) -> SizeHint {
+        SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
     }
 }
 
@@ -45,7 +48,7 @@ impl ToggleButton {
 
     }
 }
-impl Widget for ToggleButton {
+impl Interactive for ToggleButton {
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {
             self.state = !self.state;

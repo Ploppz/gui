@@ -1,35 +1,30 @@
-//! # Notes and thoughts
-//!
-//! - In the future, we can have a `trait Event: Any` and let `Widget::handle_event` return
-//! `Box<dyn Event>` to support more custom/complex events than just the basic mouse events.
-
 #[macro_use]
 extern crate mopa;
 #[macro_use]
 extern crate derive_deref;
 use mopa::Any;
-use std::collections::HashMap;
-use std::hash::Hash;
 use winput::Input;
-use uuid::Uuid;
 
 mod widgets;
+mod placement;
 
 pub use widgets::*;
+pub use placement::*;
 
 #[cfg(test)]
 mod test;
 
 #[derive(Deref, DerefMut, Debug)]
-pub struct WidgetInternal {
+pub struct Widget {
     #[deref_target]
-    pub widget: Box<dyn Widget>,
+    pub widget: Box<dyn Interactive>,
     pub pos: (f32, f32),
     pub size: (f32, f32),
 
     /// Declarative placement (used to calculate position)
     pub place: Placement,
     pub anchor: (Anchor, Anchor),
+    pub size_hint: SizeHint,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -38,19 +33,25 @@ pub struct WidgetInternal {
 
     /// 'Buffer' - when `true` it is set to `false` by the parent, and the 
     changed: bool,
+
+    /// For internal use; mirrors the id that is the key in the HashMap that this Widget is
+    /// likely a part of.
+    id: String,
 }
 
-impl WidgetInternal {
-    pub fn new<W: Widget>(widget: W, place: Placement) -> WidgetInternal {
-        WidgetInternal {
+impl Widget {
+    pub fn new<W: Interactive>(id: String, widget: W, place: Placement) -> Widget {
+        Widget {
             widget: Box::new(widget),
             pos: (0.0, 0.0),
-            size: (10.0, 10.0), // TODO Widget::default_size()?
+            size: (10.0, 10.0), // TODO Interactive::default_size()?
             place,
             anchor: (Anchor::Min, Anchor::Min),
+            size_hint: SizeHint::None,
             inside: false,
             pressed: false,
             changed: false,
+            id
         }
     }
     /// Mark that some internal state has changed in this Widget.
@@ -60,62 +61,37 @@ impl WidgetInternal {
     pub fn mark_change(&mut self) {
         self.changed = true;
     }
-
-}
-
-macro_rules! event {
-    ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
-        let change = $widget.widget.handle_event($event);
-        if change {
-            $events.push((
-                $id.clone(),
-                WidgetEventState {
-                    pressed: $widget.pressed,
-                    hover: $widget.inside,
-                    event: WidgetEvent::Change,
-                },
-            ));
-        }
-        $events.push((
-            $id.clone(),
-            WidgetEventState {
-                pressed: $widget.pressed,
-                hover: $widget.inside,
-                event: $event,
-            },
-        ));
-    }};
-}
-
-// TODO move to `widget` module. Problem with MOPA
-pub trait Widget: Any + std::fmt::Debug + Send + Sync {
-    // fn update(&mut self, _: &Input, x: f32, y: f32, mx: f32, my: f32) -> Option<Box<dyn Event>>;
-    // PROTOTYPING:
-    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
-    /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
-    /// is the very center of the widget. However, this is configurable in case a finer shape is
-    /// desired (e.g. round things).
-    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
-        let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
-        let (top, bot, right, left) = (y + h / 2.0, y - h / 2.0, x + w / 2.0, x - w / 2.0);
-        mouse.1 > bot && mouse.1 < top && mouse.0 > left && mouse.0 < right
-    }
-    /// Returns true if some internal state has changed in this widget (not in children)
-    fn handle_event(&mut self, event: WidgetEvent) -> bool;
-
-    /// Returns information whether this widget will stop mouse events and state
-    /// to reach other parts of the application.
-    fn captures(&self) -> Capture;
-
-    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)>;
-
-    fn update(
+    pub fn update(
         &mut self,
         input: &Input,
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
     ) -> (Vec<(String, WidgetEventState)>, Capture) {
+
+        macro_rules! event {
+            ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
+                let change = $widget.widget.handle_event($event);
+                if change {
+                    $events.push((
+                        $id.clone(),
+                        WidgetEventState {
+                            pressed: $widget.pressed,
+                            hover: $widget.inside,
+                            event: WidgetEvent::Change,
+                        },
+                    ));
+                }
+                $events.push((
+                    $id.clone(),
+                    WidgetEventState {
+                        pressed: $widget.pressed,
+                        hover: $widget.inside,
+                        event: $event,
+                    },
+                ));
+            }};
+        }
         // Update positions
         update_position(self.children(), (sw, sh));
 
@@ -168,43 +144,44 @@ pub trait Widget: Any + std::fmt::Debug + Send + Sync {
     }
 
 }
-mopafy!(Widget);
 
 
-#[derive(Default, Debug)]
-pub struct Gui {
-    pub widgets: HashMap<String, WidgetInternal>,
-    screen: (f32, f32),
-}
 
-impl Gui {
-    pub fn insert<W: Widget + 'static>(
-        &mut self,
-        id: String,
-        widget: W,
-        place: Placement,
-    ) {
-        self.widgets.insert(id, WidgetInternal::new(widget, place));
-    }
-}
-
-impl Widget for Gui {
+// TODO move to `widget` module. Problem with MOPA
+/// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
+/// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
+/// implement.
+pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
+    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
+    /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
+    /// is the very center of the widget. However, this is configurable in case a finer shape is
+    /// desired (e.g. round things).
     fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
-        true
+        let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
+        let (top, bot, right, left) = (y + h / 2.0, y - h / 2.0, x + w / 2.0, x - w / 2.0);
+        mouse.1 > bot && mouse.1 < top && mouse.0 > left && mouse.0 < right
     }
-    fn handle_event(&mut self, event: WidgetEvent) -> bool {
-        panic!("There is no reason to use this on the root")
+    /// Returns true if some internal state has changed in this widget (not in children)
+    fn handle_event(&mut self, event: WidgetEvent) -> bool;
+
+    /// Returns information whether this widget will stop mouse events and state
+    /// to reach other parts of the application.
+    fn captures(&self) -> Capture;
+
+    fn children(&mut self) -> Vec<(&str, &mut Widget)>;
+
+    /// Default size hint for this widget type. Defaults to `SizeHint::None`
+    fn default_size_hint(&self) -> SizeHint {
+        SizeHint::None
     }
-    fn captures(&self) -> Capture {
-        panic!("There is no reason to use this on the root")
-    }
-    fn children(&mut self) -> Vec<(&str, &mut WidgetInternal)> {
-        self.widgets.iter_mut().map(|(id, w)| (id.as_str(), w)).collect()
-    }
+
 
 }
+mopafy!(Interactive);
 
-fn update_position(widgets: Vec<(&str, &mut WidgetInternal)>, screen: (f32, f32)) {
+
+
+fn update_position(widgets: Vec<(&str, &mut Widget)>, screen: (f32, f32)) {
     let mut float_progress = 0.0;
     // TODO: look at width, height for relative positions
     for (_id, widget) in widgets {
@@ -232,65 +209,10 @@ fn update_position(widgets: Vec<(&str, &mut WidgetInternal)>, screen: (f32, f32)
             }
             Placement::Percentage (x, y) => unimplemented!(),
         };
-        update_position(widget.widget.children(), screen);
         widget.pos = pos;
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum Placement {
-    Percentage (f32, f32),
-    Fixed (Position),
-    Float (Axis, Anchor),
-}
-impl Placement {
-    pub fn fixed(x: f32, y: f32) -> Self {
-        Self::Fixed (Position {x, y, x_anchor: Anchor::Min, y_anchor: Anchor::Min})
-    }
-    pub fn x_anchor(self, a: Anchor) -> Self {
-        if let Self::Fixed(Position {mut x_anchor, ..}) =  self {
-            x_anchor = a
-        }
-        self
-    }
-    pub fn y_anchor(self, a: Anchor) -> Self {
-        if let Self::Fixed(Position {mut y_anchor, ..}) =  self {
-            y_anchor = a
-        }
-        self
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Position {
-    x: f32,
-    y: f32,
-    x_anchor: Anchor,
-    y_anchor: Anchor,
-}
-#[derive(Copy, Clone, Debug)]
-pub enum Axis {
-    X,
-    Y,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Anchor {
-    Min,
-    Max,
-    Center,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum WidgetEvent {
-    Press,
-    Release,
-    Hover,
-    Unhover,
-    /// Change to any internal state
-    Change,
-    // TODO: perhaps something to notify that position has changed
-}
 
 #[derive(Clone, Debug)]
 pub struct WidgetEventState {
@@ -298,7 +220,6 @@ pub struct WidgetEventState {
     pub pressed: bool,
     pub event: WidgetEvent,
 }
-
 
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Capture {

@@ -10,7 +10,7 @@ impl Radio {
         Radio { text }
     }
 }
-impl Widget for Radio {
+impl Interactive for Radio {
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }
@@ -38,7 +38,7 @@ impl RadioButton {
         }
     }
 }
-impl Widget for RadioButton {
+impl Interactive for RadioButton {
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {
             if !self.state {
