@@ -1,14 +1,19 @@
 use crate::*;
 use uuid::Uuid;
+use indexmap::IndexMap;
 
 #[derive(Debug)]
 pub struct Button {
-    text: Widget,
+    children: IndexMap<String, Widget>,
 }
 impl Button {
     pub fn new(text: String) -> Button {
+        let id = Uuid::new_v4().to_string();
+        let mut children = IndexMap::new();
+        children.insert(id.clone(),
+            Widget::new(id, TextField::new(text), Placement::fixed(0.0, 0.0)));
         Button {
-            text: Widget::new(Uuid::new_v4().to_string(), TextField::new(text), Placement::fixed(0.0, 0.0))
+            children
         }
     }
 }
@@ -22,8 +27,8 @@ impl Interactive for Button {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<&mut Widget> {
-        vec![&mut self.text]
+    fn children(&mut self) -> &mut IndexMap<String, Widget> {
+        &mut self.children
     }
     fn default_size_hint(&self) -> SizeHint {
         SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
@@ -32,13 +37,18 @@ impl Interactive for Button {
 
 #[derive(Debug)]
 pub struct ToggleButton {
-    pub text: Widget,
     pub state: bool,
+    children: IndexMap<String, Widget>,
 }
 impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
+        let id = Uuid::new_v4().to_string();
+        let mut children = IndexMap::new();
+        children.insert(id.clone(),
+            Widget::new(id, TextField::new(text), Placement::fixed(0.0, 0.0))
+            );
         ToggleButton {
-            text: Widget::new(Uuid::new_v4().to_string(), TextField::new(text), Placement::fixed(0.0, 0.0)),
+            children,
             state: false,
         }
 
@@ -59,7 +69,7 @@ impl Interactive for ToggleButton {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<&mut Widget> {
-        vec![&mut self.text]
+    fn children(&mut self) -> &mut IndexMap<String, Widget> {
+        &mut self.children
     }
 }

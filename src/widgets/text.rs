@@ -1,4 +1,5 @@
 use crate::*;
+use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
 pub struct TextField {
@@ -19,7 +20,7 @@ impl Interactive for TextField {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> Vec<&mut Widget> {
-        vec![]
+    fn children(&mut self) -> &mut IndexMap<String, Widget> {
+        panic!("Text field cannot have children")
     }
 }

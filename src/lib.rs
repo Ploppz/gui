@@ -4,12 +4,15 @@ extern crate mopa;
 extern crate derive_deref;
 use mopa::Any;
 use winput::Input;
+use indexmap::IndexMap;
 
 mod widgets;
 mod placement;
+mod gui;
 
 pub use widgets::*;
 pub use placement::*;
+pub use gui::*;
 
 #[cfg(test)]
 mod test;
@@ -99,14 +102,14 @@ impl Widget {
         // Update children
         let mut events = Vec::new();
         let mut capture = Capture::default();
-        for child in self.children() {
+        for child in self.children().values_mut() {
             let (child_events, child_capture) = child.update(input, sw, sh, mouse);
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
 
         // Update positions of children (and possibly size of self)
-        self.update_position((sw, sh));
+        self.update_positions((sw, sh));
 
         if !capture.mouse {
             let now_inside = self.inside(self.pos, self.size, mouse);
@@ -150,11 +153,11 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_position(&mut self, screen: (f32, f32)) {
+    fn update_positions(&mut self, screen: (f32, f32)) {
         let children = self.children();
         let mut float_progress = 0.0;
         // TODO: look at width, height for relative positions
-        for widget in children {
+        for widget in children.values_mut() {
             let pos = match widget.place {
                 Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
                     match x_anchor {
@@ -181,7 +184,6 @@ impl Widget {
             widget.pos = pos;
         }
     }
-
 }
 
 
@@ -207,19 +209,36 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children(&mut self) -> Vec<&mut Widget>;
+    fn children(&mut self) -> &mut IndexMap<String, Widget>;
 
     /// Default size hint for this widget type. Defaults to `SizeHint::None`
     fn default_size_hint(&self) -> SizeHint {
         SizeHint::None
     }
 
+    fn recursive_children_iter<'a>(&'a mut self) -> Box<dyn Iterator<Item=&'a mut Widget> + 'a> {
+        Box::new(
+            self.children().values_mut()
+                .map(|child| child.recursive_children_iter())
+                .flatten()
+        )
+    }
 
 }
 mopafy!(Interactive);
 
 
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum WidgetEvent {
+    Press,
+    Release,
+    Hover,
+    Unhover,
+    /// Change to any internal state
+    Change,
+    // TODO: perhaps something to notify that position has changed
+}
 
 
 #[derive(Clone, Debug)]

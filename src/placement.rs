@@ -47,16 +47,6 @@ pub enum Anchor {
     Center,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum WidgetEvent {
-    Press,
-    Release,
-    Hover,
-    Unhover,
-    /// Change to any internal state
-    Change,
-    // TODO: perhaps something to notify that position has changed
-}
 
 #[derive(Copy, Clone, Debug)]
 pub enum SizeHint {
