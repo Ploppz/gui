@@ -11,10 +11,14 @@ impl Button {
         let id = Uuid::new_v4().to_string();
         let mut children = IndexMap::new();
         children.insert(id.clone(),
-            Widget::new(id, TextField::new(text), Placement::fixed(0.0, 0.0)));
+            Widget::new(id, TextField::new(text)).placement(Placement::fixed(0.0, 0.0)));
         Button {
             children
         }
+    }
+    /// Wrap in a `Widget` 
+    pub fn wrap(self) -> Widget {
+        Widget::new(String::new(), self)
     }
 }
 impl Interactive for Button {
@@ -27,8 +31,15 @@ impl Interactive for Button {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> &mut IndexMap<String, Widget> {
-        &mut self.children
+    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a> {
+        Box::new(self.children.values_mut())
+    }
+    fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
+        self.children.get_mut(id)
+    }
+    fn insert_child(&mut self, id: String, w: Widget) -> Option<()> {
+        self.children.insert(id, w);
+        Some(())
     }
     fn default_size_hint(&self) -> SizeHint {
         SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
@@ -45,13 +56,17 @@ impl ToggleButton {
         let id = Uuid::new_v4().to_string();
         let mut children = IndexMap::new();
         children.insert(id.clone(),
-            Widget::new(id, TextField::new(text), Placement::fixed(0.0, 0.0))
-            );
+            TextField::new(text)
+                .wrap()
+                .placement(Placement::fixed(0.0, 0.0)));
         ToggleButton {
             children,
             state: false,
         }
-
+    }
+    /// Wrap in a `Widget` 
+    pub fn wrap(self) -> Widget {
+        Widget::new(String::new(), self)
     }
 }
 impl Interactive for ToggleButton {
@@ -69,7 +84,17 @@ impl Interactive for ToggleButton {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> &mut IndexMap<String, Widget> {
-        &mut self.children
+    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a> {
+        Box::new(self.children.values_mut())
+    }
+    fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
+        self.children.get_mut(id)
+    }
+    fn insert_child(&mut self, id: String, w: Widget) -> Option<()> {
+        self.children.insert(id, w);
+        Some(())
+    }
+    fn default_size_hint(&self) -> SizeHint {
+        SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
     }
 }

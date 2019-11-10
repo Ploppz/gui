@@ -4,7 +4,6 @@ extern crate mopa;
 extern crate derive_deref;
 use mopa::Any;
 use winput::Input;
-use indexmap::IndexMap;
 
 mod widgets;
 mod placement;
@@ -39,16 +38,18 @@ pub struct Widget {
 
     /// For internal use; mirrors the id that is the key in the HashMap that this Widget is
     /// likely a part of.
+    /// NOTE: It's important to always ensure that `self.id` corresponds to the ID as registered in
+    /// the gui system.
     id: String,
 }
 
 impl Widget {
-    pub fn new<W: Interactive>(id: String, widget: W, place: Placement) -> Widget {
+    pub fn new<W: Interactive>(id: String, widget: W) -> Widget {
         Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
-            place,
+            place: Placement::Float (Axis::X, Anchor::Min),
             anchor: (Anchor::Min, Anchor::Min),
             size_hint: SizeHint::None,
             inside: false,
@@ -56,6 +57,10 @@ impl Widget {
             changed: false,
             id
         }
+    }
+    pub fn placement(mut self, place: Placement) -> Self {
+        self.place = place;
+        self
     }
     pub fn get_id(&self) -> &str {
         &self.id
@@ -102,7 +107,7 @@ impl Widget {
         // Update children
         let mut events = Vec::new();
         let mut capture = Capture::default();
-        for child in self.children().values_mut() {
+        for child in self.children() {
             let (child_events, child_capture) = child.update(input, sw, sh, mouse);
             capture |= child_capture;
             events.extend(child_events.into_iter());
@@ -157,7 +162,7 @@ impl Widget {
         let children = self.children();
         let mut float_progress = 0.0;
         // TODO: look at width, height for relative positions
-        for widget in children.values_mut() {
+        for widget in children {
             let pos = match widget.place {
                 Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
                     match x_anchor {
@@ -209,7 +214,9 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children(&mut self) -> &mut IndexMap<String, Widget>;
+    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a>;
+    fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
+    fn insert_child(&mut self, id: String, w: Widget) -> Option<()>;
 
     /// Default size hint for this widget type. Defaults to `SizeHint::None`
     fn default_size_hint(&self) -> SizeHint {
@@ -218,7 +225,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
 
     fn recursive_children_iter<'a>(&'a mut self) -> Box<dyn Iterator<Item=&'a mut Widget> + 'a> {
         Box::new(
-            self.children().values_mut()
+            self.children()
                 .map(|child| child.recursive_children_iter())
                 .flatten()
         )

@@ -1,5 +1,4 @@
 use crate::*;
-use uuid::Uuid;
 use indexmap::IndexMap;
 
 #[derive(Debug)]
@@ -11,8 +10,12 @@ pub struct Gui {
 
 impl Gui {
     pub fn new() -> Gui {
+        let root = Widget::new(
+            String::new(),
+            Container::new()
+        ).placement(Placement::fixed(0.0, 0.0));
         Gui {
-            root: Widget::new(String::new(), Container::new(), Placement::fixed(0.0, 0.0)),
+            root,
             screen: (0.0, 0.0),
             paths: IndexMap::new(),
         }
@@ -30,31 +33,26 @@ impl Gui {
         update_paths_recurse(vec![], &mut self.root, &mut self.paths);
         self.root.update(input, sw, sh, mouse)
     }
-    pub fn insert_widget<W: Interactive + 'static>(
-        &mut self,
-        parent_id: &str,
-        id: String,
-        widget: W,
-        place: Placement,
-    ) -> Option<()> {
+    pub fn insert_widget(&mut self, parent_id: &str, id: String, mut widget: Widget) -> Option<()> {
+        widget.id = id.clone();
         self.get_widget(parent_id)
             .map(|parent| {
-                parent.children().insert(id.clone(), Widget::new(id, widget, place));
+                parent.insert_child(id.clone(), widget);
             })
     }
-    pub fn insert_widget_in_root<W: Interactive + 'static>(
-        &mut self,
-        id: String,
-        widget: W,
-        place: Placement,
-    ) {
-        self.root.children().insert(id.clone(), Widget::new(id, widget, place));
+    pub fn insert_widget_in_root(&mut self, id: String, mut widget: Widget) {
+        widget.id = id.clone();
+        self.root.insert_child(id.clone(), widget);
     }
     pub fn get_widget(&mut self, id: &str) -> Option<&mut Widget> {
         if let Some(path) = self.paths.get(id) {
             let mut current = &mut self.root;
             for id in path {
-                current = &mut current.children()[id];
+                if let Some(child) = current.get_child(id) {
+                    current = child;
+                } else {
+                    panic!("Incorrect path (panicking to be sure to catch this error)");
+                }
             }
             Some(current)
         } else {
@@ -66,7 +64,7 @@ impl Gui {
     }
 }
 fn update_paths_recurse(current_path: Vec<String>, w: &mut Widget, paths: &mut IndexMap<String, Vec<String>>) {
-    for child in w.children().values_mut() {
+    for child in w.children() {
         paths.insert(child.get_id().to_string(), current_path.clone());
 
         let mut child_path = current_path.clone();

@@ -1,5 +1,4 @@
 use crate::*;
-use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
 pub struct TextField {
@@ -8,6 +7,10 @@ pub struct TextField {
 impl TextField {
     pub fn new(text: String) -> TextField {
         TextField { text }
+    }
+    /// Wrap in a `Widget` 
+    pub fn wrap(self) -> Widget {
+        Widget::new(String::new(), self)
     }
 }
 impl Interactive for TextField {
@@ -20,7 +23,13 @@ impl Interactive for TextField {
             keyboard: false,
         }
     }
-    fn children(&mut self) -> &mut IndexMap<String, Widget> {
-        panic!("Text field cannot have children")
+    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a> {
+        Box::new(std::iter::empty())
+    }
+    fn get_child(&mut self, _id: &str) -> Option<&mut Widget> {
+        None
+    }
+    fn insert_child(&mut self, _id: String, _w: Widget) -> Option<()> {
+        None
     }
 }
