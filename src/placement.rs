@@ -1,16 +1,20 @@
-
 #[derive(Copy, Clone, Debug)]
 pub enum Placement {
-    Percentage (f32, f32),
-    Fixed (Position),
-    Float (Axis, Anchor),
+    Percentage(f32, f32),
+    Fixed(Position),
+    Float(Axis, Anchor),
 }
 impl Placement {
     pub fn fixed(x: f32, y: f32) -> Self {
-        Self::Fixed (Position {x, y, x_anchor: Anchor::Min, y_anchor: Anchor::Min})
+        Self::Fixed(Position {
+            x,
+            y,
+            x_anchor: Anchor::Min,
+            y_anchor: Anchor::Min,
+        })
     }
     pub fn x_anchor(self, a: Anchor) -> Self {
-        if let Self::Fixed(Position {mut x_anchor, ..}) =  self {
+        if let Self::Fixed(Position { mut x_anchor, .. }) = self {
             x_anchor = a
         } else {
             panic!("x_anchor should only be used on `Placement::Fixed`");
@@ -18,7 +22,7 @@ impl Placement {
         self
     }
     pub fn y_anchor(self, a: Anchor) -> Self {
-        if let Self::Fixed(Position {mut y_anchor, ..}) =  self {
+        if let Self::Fixed(Position { mut y_anchor, .. }) = self {
             y_anchor = a
         } else {
             panic!("y_anchor should only be used on `Placement::Fixed`");
@@ -47,11 +51,15 @@ pub enum Anchor {
     Center,
 }
 
-
 #[derive(Copy, Clone, Debug)]
 pub enum SizeHint {
     None,
     /// Minimize, with internal padding
-    Minimize {top: f32, bot: f32, left: f32, right: f32},
-    Percentage (f32, f32),
+    Minimize {
+        top: f32,
+        bot: f32,
+        left: f32,
+        right: f32,
+    },
+    Percentage(f32, f32),
 }

@@ -10,10 +10,8 @@ pub struct Gui {
 
 impl Gui {
     pub fn new() -> Gui {
-        let root = Widget::new(
-            String::new(),
-            Container::new()
-        ).placement(Placement::fixed(0.0, 0.0));
+        let root =
+            Widget::new(String::new(), Container::new()).placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
             screen: (0.0, 0.0),
@@ -67,7 +65,7 @@ impl Gui {
         }
     }
     /// Recursive iterator of all widgets in the tree
-    pub fn widgets_iter<'a>(&'a self) -> Box<dyn Iterator<Item=&'a Widget> + 'a> {
+    pub fn widgets_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         self.root.recursive_children_iter()
     }
     /// Recursively process all widgets (mutably) in the tree
@@ -85,7 +83,11 @@ fn recursive_children_mut(w: &mut Widget, f: &mut dyn FnMut(&mut Widget)) {
         recursive_children_mut(child, f);
     }
 }
-fn update_paths_recurse(current_path: Vec<String>, w: &mut Widget, paths: &mut IndexMap<String, Vec<String>>) {
+fn update_paths_recurse(
+    current_path: Vec<String>,
+    w: &mut Widget,
+    paths: &mut IndexMap<String, Vec<String>>,
+) {
     for child in w.children_mut() {
         paths.insert(child.get_id().to_string(), current_path.clone());
 

@@ -5,13 +5,13 @@ extern crate derive_deref;
 use mopa::Any;
 use winput::Input;
 
-mod widgets;
-mod placement;
 mod gui;
+mod placement;
+mod widgets;
 
-pub use widgets::*;
-pub use placement::*;
 pub use crate::gui::*;
+pub use placement::*;
+pub use widgets::*;
 
 #[cfg(test)]
 mod test;
@@ -33,7 +33,7 @@ pub struct Widget {
     /// Keeps track of mouse press state in order to generate the right WidgetEvents
     pressed: bool,
 
-    /// 'Buffer' - when `true` it is set to `false` by the parent, and the 
+    /// 'Buffer' - when `true` it is set to `false` by the parent, and the
     changed: bool,
 
     /// For internal use; mirrors the id that is the key in the HashMap that this Widget is
@@ -50,13 +50,13 @@ impl Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
-            place: Placement::Float (Axis::X, Anchor::Min),
+            place: Placement::Float(Axis::X, Anchor::Min),
             anchor: (Anchor::Min, Anchor::Min),
             size_hint,
             inside: false,
             pressed: false,
             changed: false,
-            id
+            id,
         }
     }
     pub fn placement(mut self, place: Placement) -> Self {
@@ -116,7 +116,6 @@ impl Widget {
             events.extend(child_events.into_iter());
         }
 
-
         if !capture.mouse {
             let now_inside = self.inside(self.pos, self.size, mouse);
             let prev_inside = self.inside;
@@ -168,19 +167,24 @@ impl Widget {
 
         for widget in children {
             let pos = match widget.place {
-                Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
+                Placement::Fixed(Position {
+                    x,
+                    y,
+                    x_anchor,
+                    y_anchor,
+                }) => (
                     match x_anchor {
                         Anchor::Min => pos.0 + x,
                         Anchor::Max => pos.0 + size.0 - x,
                         Anchor::Center => unimplemented!(),
                     },
-
                     match y_anchor {
                         Anchor::Min => pos.1 + y,
                         Anchor::Max => pos.1 + size.1 - y,
                         Anchor::Center => unimplemented!(),
-                    }),
-                Placement::Float (axis, anchor) => {
+                    },
+                ),
+                Placement::Float(axis, anchor) => {
                     if let (Axis::X, Anchor::Min) = (axis, anchor) {
                         float_progress += widget.size.0;
                         (float_progress - widget.size.0 / 2.0, 0.0)
@@ -188,7 +192,7 @@ impl Widget {
                         unimplemented!();
                     }
                 }
-                Placement::Percentage (_x, _y) => unimplemented!(),
+                Placement::Percentage(_x, _y) => unimplemented!(),
             };
             widget.pos = pos;
             if widget.pos.0 + widget.size.0 - pos.0 > max_width {
@@ -198,13 +202,17 @@ impl Widget {
                 max_height = widget.pos.1 + widget.size.1 - pos.1;
             }
         }
-        if let SizeHint::Minimize {top, bot, left, right} = self.size_hint {
+        if let SizeHint::Minimize {
+            top,
+            bot,
+            left,
+            right,
+        } = self.size_hint
+        {
             self.size = (max_width + left + right, max_height + top + bot);
         }
     }
 }
-
-
 
 // TODO move to its own module. Problem with MOPA
 /// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
@@ -227,8 +235,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item=&Widget> + 'a>;
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a>;
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
     fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
     fn insert_child(&mut self, id: String, w: Widget) -> Option<()>;
 
@@ -237,20 +245,17 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         SizeHint::None
     }
 
-    fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item=&'a Widget> + 'a> {
+    fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
-            self.children()
-            .chain(
+            self.children().chain(
                 self.children()
                     .map(|child| child.recursive_children_iter())
-                    .flatten()
-            )
+                    .flatten(),
+            ),
         )
     }
 }
 mopafy!(Interactive);
-
-
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum WidgetEvent {
@@ -262,7 +267,6 @@ pub enum WidgetEvent {
     Change,
     // TODO: perhaps something to notify that position has changed
 }
-
 
 #[derive(Clone, Debug)]
 pub struct WidgetEventState {

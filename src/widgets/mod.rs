@@ -1,13 +1,9 @@
 mod button;
-mod text;
 mod container;
+mod text;
 // mod radio;
 
 pub use button::*;
-pub use text::*;
 pub use container::*;
+pub use text::*;
 // pub use radio::*;
-
-
-
-
