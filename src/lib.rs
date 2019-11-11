@@ -45,13 +45,14 @@ pub struct Widget {
 
 impl Widget {
     pub fn new<W: Interactive>(id: String, widget: W) -> Widget {
+        let size_hint = widget.default_size_hint();
         Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
             place: Placement::Float (Axis::X, Anchor::Min),
             anchor: (Anchor::Min, Anchor::Min),
-            size_hint: SizeHint::None,
+            size_hint,
             inside: false,
             pressed: false,
             changed: false,
@@ -107,7 +108,7 @@ impl Widget {
         // Update children
         let mut events = Vec::new();
         let mut capture = Capture::default();
-        for child in self.children() {
+        for child in self.children_mut() {
             let (child_events, child_capture) = child.update(input, sw, sh, mouse);
             capture |= child_capture;
             events.extend(child_events.into_iter());
@@ -159,21 +160,24 @@ impl Widget {
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
     fn update_positions(&mut self, screen: (f32, f32)) {
-        let children = self.children();
-        let mut float_progress = 0.0;
-        // TODO: look at width, height for relative positions
+        let (pos, size) = (self.pos, self.size);
+        let children = self.children_mut();
+        let mut float_progress = pos.0;
+        let mut max_width = 0.0;
+        let mut max_height = 0.0;
+
         for widget in children {
             let pos = match widget.place {
                 Placement::Fixed (Position {x, y, x_anchor, y_anchor}) => (
                     match x_anchor {
-                        Anchor::Min => x,
-                        Anchor::Max => screen.0 - x,
+                        Anchor::Min => pos.0 + x,
+                        Anchor::Max => pos.0 + size.0 - x,
                         Anchor::Center => unimplemented!(),
                     },
 
                     match y_anchor {
-                        Anchor::Min => y,
-                        Anchor::Max => screen.1 - y,
+                        Anchor::Min => pos.1 + y,
+                        Anchor::Max => pos.1 + size.1 - y,
                         Anchor::Center => unimplemented!(),
                     }),
                 Placement::Float (axis, anchor) => {
@@ -187,6 +191,15 @@ impl Widget {
                 Placement::Percentage (_x, _y) => unimplemented!(),
             };
             widget.pos = pos;
+            if widget.pos.0 + widget.size.0 - pos.0 > max_width {
+                max_width = widget.pos.0 + widget.size.0 - pos.0;
+            }
+            if widget.pos.1 + widget.size.1 - pos.1 > max_height {
+                max_height = widget.pos.1 + widget.size.1 - pos.1;
+            }
+        }
+        if let SizeHint::Minimize {top, bot, left, right} = self.size_hint {
+            self.size = (max_width + left + right, max_height + top + bot);
         }
     }
 }
@@ -214,7 +227,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// to reach other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a>;
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item=&Widget> + 'a>;
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a>;
     fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
     fn insert_child(&mut self, id: String, w: Widget) -> Option<()>;
 
@@ -223,14 +237,16 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         SizeHint::None
     }
 
-    fn recursive_children_iter<'a>(&'a mut self) -> Box<dyn Iterator<Item=&'a mut Widget> + 'a> {
+    fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item=&'a Widget> + 'a> {
         Box::new(
             self.children()
-                .map(|child| child.recursive_children_iter())
-                .flatten()
+            .chain(
+                self.children()
+                    .map(|child| child.recursive_children_iter())
+                    .flatten()
+            )
         )
     }
-
 }
 mopafy!(Interactive);
 

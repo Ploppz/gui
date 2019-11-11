@@ -22,8 +22,11 @@ impl Interactive for Container {
             keyboard: false,
         }
     }
-    fn children<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a> {
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item=&mut Widget> + 'a> {
         Box::new(self.children.values_mut())
+    }
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item=&Widget> + 'a> {
+        Box::new(self.children.values())
     }
     fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
@@ -33,6 +36,6 @@ impl Interactive for Container {
         Some(())
     }
     fn default_size_hint(&self) -> SizeHint {
-        SizeHint::Minimize {top: 2.0, bot: 2.0, left: 2.0, right: 2.0}
+        SizeHint::None
     }
 }

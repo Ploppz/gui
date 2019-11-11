@@ -48,6 +48,7 @@ fn test_mark_change() {
     let mut gui = single_toggle_button();
 
     // Manually change the toggle button
+    println!("{:?}", gui.get_widget("B1").unwrap());
     gui.get_widget("B1").unwrap().downcast_mut::<ToggleButton>().unwrap()
         .state = true;
 
@@ -56,8 +57,28 @@ fn test_mark_change() {
     button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
     let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
+    println!("{:?}", events);
     assert_eq!(events.len(), 1);
     assert!(event_exists(&events, WidgetEvent::Change));
     // Extra test:
     assert!(!capture.mouse);
+}
+
+#[test]
+fn test_gui_paths() {
+    // Test that gui updates paths correctly and that get_widget() which uses said paths, works
+    // correctly.
+    let mut gui = Gui::new();
+    gui.insert_widget_in_root("B1".to_string(), ToggleButton::new("B1".to_string())
+        .wrap().placement(Placement::fixed(100.0, 100.0)));
+
+    gui.get_widget("B1").unwrap();
+    gui.get_widget("B1").unwrap()
+        .downcast_mut::<ToggleButton>().unwrap();
+
+    // See if `update` updates paths correctly
+    gui.update(&Input::default(), 0.0, 0.0, (100.0, 100.0));
+    gui.get_widget("B1").unwrap();
+    gui.get_widget("B1").unwrap()
+        .downcast_mut::<ToggleButton>().unwrap();
 }
