@@ -37,10 +37,11 @@ fn test_button_press_capture_and_events() {
     input.register_mouse_input(mouse_pressed(), MouseButton::Left);
     // NOTE: gui.update() ignores `input`'s mouse position, as a transformed one is passed:
     let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+    let relevant_events = events.into_iter().filter(|event| event.0.len() > 0).collect::<Vec<_>>();
     assert!(capture.mouse);
-    assert_eq!(events.len(), 2);
-    assert!(event_exists(&events, WidgetEvent::Press));
-    assert!(event_exists(&events, WidgetEvent::Hover));
+    assert_eq!(relevant_events.len(), 4);
+    assert!(event_exists(&relevant_events, WidgetEvent::Press));
+    assert!(event_exists(&relevant_events, WidgetEvent::Hover));
 }
 
 #[test]
@@ -57,9 +58,9 @@ fn test_mark_change() {
     button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
     let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
-    println!("{:?}", events);
-    assert_eq!(events.len(), 1);
-    assert!(event_exists(&events, WidgetEvent::Change));
+    let relevant_events = events.into_iter().filter(|event| event.0.len() > 0).collect::<Vec<_>>();
+    assert_eq!(relevant_events.len(), 1);
+    assert!(event_exists(&relevant_events, WidgetEvent::Change));
     // Extra test:
     assert!(!capture.mouse);
 }

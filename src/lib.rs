@@ -11,7 +11,7 @@ mod gui;
 
 pub use widgets::*;
 pub use placement::*;
-pub use gui::*;
+pub use crate::gui::*;
 
 #[cfg(test)]
 mod test;
@@ -104,6 +104,8 @@ impl Widget {
                 ));
             }};
         }
+        // Update positions of children (and possibly size of self)
+        self.update_positions((sw, sh));
 
         // Update children
         let mut events = Vec::new();
@@ -114,8 +116,6 @@ impl Widget {
             events.extend(child_events.into_iter());
         }
 
-        // Update positions of children (and possibly size of self)
-        self.update_positions((sw, sh));
 
         if !capture.mouse {
             let now_inside = self.inside(self.pos, self.size, mouse);
