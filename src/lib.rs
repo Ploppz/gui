@@ -42,6 +42,29 @@ pub struct Widget {
     /// the gui system.
     id: String,
 }
+macro_rules! event {
+    ($event:expr, ($widget:expr, $events:expr)) => {{
+        let change = $widget.inner.handle_event($event);
+        if change {
+            $events.push((
+                $widget.id.clone(),
+                WidgetEventState {
+                    pressed: $widget.pressed,
+                    hover: $widget.inside,
+                    event: WidgetEvent::Change,
+                },
+            ));
+        }
+        $events.push((
+            $widget.id.clone(),
+            WidgetEventState {
+                pressed: $widget.pressed,
+                hover: $widget.inside,
+                event: $event,
+            },
+        ));
+    }};
+}
 
 impl Widget {
     pub fn new<W: Interactive>(id: String, widget: W) -> Widget {
@@ -81,35 +104,14 @@ impl Widget {
         sh: f32,
         mouse: (f32, f32),
     ) -> (Vec<(String, WidgetEventState)>, Capture) {
-        macro_rules! event {
-            ($event:expr, ($widget:expr, $id:expr, $events:expr)) => {{
-                let change = $widget.inner.handle_event($event);
-                if change {
-                    $events.push((
-                        $id.clone(),
-                        WidgetEventState {
-                            pressed: $widget.pressed,
-                            hover: $widget.inside,
-                            event: WidgetEvent::Change,
-                        },
-                    ));
-                }
-                $events.push((
-                    $id.clone(),
-                    WidgetEventState {
-                        pressed: $widget.pressed,
-                        hover: $widget.inside,
-                        event: $event,
-                    },
-                ));
-            }};
-        }
-        // Update positions of children (and possibly size of self)
-        self.update_positions((sw, sh));
-
-        // Update children
         let mut events = Vec::new();
         let mut capture = Capture::default();
+
+        // Update positions of children (and possibly size of self)
+        let pos_events = self.update_positions((sw, sh));
+        events.extend(pos_events.into_iter());
+
+        // Update children
         for child in self.children_mut() {
             let (child_events, child_capture) = child.update(input, sw, sh, mouse);
             capture |= child_capture;
@@ -122,9 +124,9 @@ impl Widget {
             self.inside = now_inside;
 
             if now_inside && !prev_inside {
-                event!(WidgetEvent::Hover, (self, self.id, events));
+                event!(WidgetEvent::Hover, (self, events));
             } else if prev_inside && !now_inside {
-                event!(WidgetEvent::Unhover, (self, self.id, events));
+                event!(WidgetEvent::Unhover, (self, events));
             }
 
             if now_inside {
@@ -133,11 +135,11 @@ impl Widget {
 
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
                 self.pressed = true;
-                event!(WidgetEvent::Press, (self, self.id, events));
+                event!(WidgetEvent::Press, (self, events));
             }
             if self.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
                 self.pressed = false;
-                event!(WidgetEvent::Release, (self, self.id, events));
+                event!(WidgetEvent::Release, (self, events));
             }
         }
 
@@ -158,7 +160,8 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self, screen: (f32, f32)) {
+    fn update_positions(&mut self, screen: (f32, f32)) -> Vec<(String, WidgetEventState)> {
+        let mut events = Vec::new();
         let (pos, size) = (self.pos, self.size);
         let children = self.children_mut();
         let mut float_progress = pos.0;
@@ -194,6 +197,9 @@ impl Widget {
                 }
                 Placement::Percentage(_x, _y) => unimplemented!(),
             };
+            if pos != widget.pos {
+                event!(WidgetEvent::ChangePos (pos.0, pos.1), (widget, events));
+            }
             widget.pos = pos;
             if widget.pos.0 + widget.size.0 - pos.0 > max_width {
                 max_width = widget.pos.0 + widget.size.0 - pos.0;
@@ -209,8 +215,13 @@ impl Widget {
             right,
         } = self.size_hint
         {
+            let size = self.size.clone();
             self.size = (max_width + left + right, max_height + top + bot);
+            if size != self.size {
+                event!(WidgetEvent::ChangeSize (self.size.0, self.size.1), (self, events));
+            }
         }
+        events
     }
 }
 
@@ -257,12 +268,14 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
 }
 mopafy!(Interactive);
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum WidgetEvent {
     Press,
     Release,
     Hover,
     Unhover,
+    ChangePos (f32, f32),
+    ChangeSize (f32, f32),
     /// Change to any internal state
     Change,
     // TODO: perhaps something to notify that position has changed

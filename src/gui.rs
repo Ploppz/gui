@@ -61,7 +61,11 @@ impl Gui {
             }
             current.get_child(id)
         } else {
-            None
+            if id.is_empty() {
+                Some(&mut self.root)
+            } else {
+                None
+            }
         }
     }
     /// Recursive iterator of all widgets in the tree
