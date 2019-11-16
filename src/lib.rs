@@ -164,12 +164,12 @@ impl Widget {
         let mut events = Vec::new();
         let (pos, size) = (self.pos, self.size);
         let children = self.children_mut();
-        let mut float_progress = pos.0;
+        let mut float_progress = 0.0;
         let mut max_width = 0.0;
         let mut max_height = 0.0;
 
-        for widget in children {
-            let pos = match widget.place {
+        for child in children {
+            let child_relative_pos = match child.place {
                 Placement::Fixed(Position {
                     x,
                     y,
@@ -177,36 +177,37 @@ impl Widget {
                     y_anchor,
                 }) => (
                     match x_anchor {
-                        Anchor::Min => pos.0 + x,
-                        Anchor::Max => pos.0 + size.0 - x,
+                        Anchor::Min => x,
+                        Anchor::Max => size.0 - x,
                         Anchor::Center => unimplemented!(),
                     },
                     match y_anchor {
-                        Anchor::Min => pos.1 + y,
-                        Anchor::Max => pos.1 + size.1 - y,
+                        Anchor::Min => y,
+                        Anchor::Max => size.1 - y,
                         Anchor::Center => unimplemented!(),
                     },
                 ),
                 Placement::Float(axis, anchor) => {
                     if let (Axis::X, Anchor::Min) = (axis, anchor) {
-                        float_progress += widget.size.0;
-                        (float_progress - widget.size.0 / 2.0, 0.0)
+                        float_progress += child.size.0;
+                        (float_progress - child.size.0 / 2.0, 0.0)
                     } else {
                         unimplemented!();
                     }
                 }
                 Placement::Percentage(_x, _y) => unimplemented!(),
             };
-            if pos != widget.pos {
-                event!(WidgetEvent::ChangePos(pos.0, pos.1), (widget, events));
+            if child_relative_pos != child.pos {
+                event!(WidgetEvent::ChangePos(child_relative_pos.0, child_relative_pos.1), (child, events));
             }
-            widget.pos = pos;
-            if widget.pos.0 + widget.size.0 - pos.0 > max_width {
-                max_width = widget.pos.0 + widget.size.0 - pos.0;
+            if child.pos.0 + child.size.0 > max_width {
+                max_width = child.pos.0 + child.size.0;
             }
-            if widget.pos.1 + widget.size.1 - pos.1 > max_height {
-                max_height = widget.pos.1 + widget.size.1 - pos.1;
+            if child.pos.1 + child.size.1 > max_height {
+                max_height = child.pos.1 + child.size.1;
             }
+            child.pos.0 = child_relative_pos.0 + pos.0;
+            child.pos.1 = child_relative_pos.1 + pos.1;
         }
         if let SizeHint::Minimize {
             top,
