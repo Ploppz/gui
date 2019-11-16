@@ -31,8 +31,8 @@ impl Interactive for Container {
     fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
     }
-    fn insert_child(&mut self, id: String, w: Widget) -> Option<()> {
-        self.children.insert(id, w);
+    fn insert_child(&mut self, w: Widget) -> Option<()> {
+        self.children.insert(w.get_id().to_string(), w);
         Some(())
     }
     fn default_size_hint(&self) -> SizeHint {

@@ -198,7 +198,7 @@ impl Widget {
                 Placement::Percentage(_x, _y) => unimplemented!(),
             };
             if pos != widget.pos {
-                event!(WidgetEvent::ChangePos (pos.0, pos.1), (widget, events));
+                event!(WidgetEvent::ChangePos(pos.0, pos.1), (widget, events));
             }
             widget.pos = pos;
             if widget.pos.0 + widget.size.0 - pos.0 > max_width {
@@ -218,7 +218,10 @@ impl Widget {
             let size = self.size.clone();
             self.size = (max_width + left + right, max_height + top + bot);
             if size != self.size {
-                event!(WidgetEvent::ChangeSize (self.size.0, self.size.1), (self, events));
+                event!(
+                    WidgetEvent::ChangeSize(self.size.0, self.size.1),
+                    (self, events)
+                );
             }
         }
         events
@@ -230,6 +233,13 @@ impl Widget {
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.
 pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
+    /// Create a Widget with this Interactive.
+    fn wrap(self, id: String) -> Widget
+    where
+        Self: Sized,
+    {
+        Widget::new(id, self)
+    }
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
     /// is the very center of the widget. However, this is configurable in case a finer shape is
@@ -249,7 +259,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
     fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
     fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
-    fn insert_child(&mut self, id: String, w: Widget) -> Option<()>;
+    fn insert_child(&mut self, w: Widget) -> Option<()>;
 
     /// Default size hint for this widget type. Defaults to `SizeHint::None`
     fn default_size_hint(&self) -> SizeHint {
@@ -274,8 +284,8 @@ pub enum WidgetEvent {
     Release,
     Hover,
     Unhover,
-    ChangePos (f32, f32),
-    ChangeSize (f32, f32),
+    ChangePos(f32, f32),
+    ChangeSize(f32, f32),
     /// Change to any internal state
     Change,
     // TODO: perhaps something to notify that position has changed

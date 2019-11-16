@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 pub struct Gui {
     root: Widget,
     screen: (f32, f32),
-    paths: IndexMap<String, Vec<String>>,
+    pub paths: IndexMap<String, Vec<String>>,
 }
 
 impl Gui {
@@ -30,11 +30,11 @@ impl Gui {
         update_paths_recurse(vec![], &mut self.root, &mut self.paths);
         self.root.update(input, sw, sh, mouse)
     }
-    pub fn insert_widget(&mut self, parent_id: &str, id: String, mut widget: Widget) -> Option<()> {
-        widget.id = id.clone();
+    pub fn insert_widget(&mut self, parent_id: &str, widget: Widget) -> Option<()> {
+        let id = widget.get_id().to_string();
         if let Some(parent) = self.get_widget(parent_id) {
             // Insert
-            parent.insert_child(id.clone(), widget);
+            parent.insert_child(widget);
             // Update paths
             let mut path = self.paths[parent_id].clone();
             path.push(parent_id.to_string());
@@ -44,12 +44,15 @@ impl Gui {
             None
         }
     }
-    pub fn insert_widget_in_root(&mut self, id: String, mut widget: Widget) {
-        widget.id = id.clone();
-        self.root.insert_child(id.clone(), widget);
+    pub fn insert_widget_in_root(&mut self, widget: Widget) {
+        let id = widget.get_id().to_string();
+        self.root.insert_child(widget);
         self.paths.insert(id, vec![]);
     }
     pub fn get_widget(&mut self, id: &str) -> Option<&mut Widget> {
+        if id.is_empty() {
+            return Some(&mut self.root);
+        }
         if let Some(path) = self.paths.get(id) {
             let mut current = &mut self.root;
             for id in path {
@@ -59,7 +62,11 @@ impl Gui {
                     panic!("Incorrect path (panicking to be sure to catch this error)");
                 }
             }
-            current.get_child(id)
+            if let Some(child) = current.get_child(id) {
+                Some(child)
+            } else {
+                panic!("Path is wrong - child not found.  child {}", id);
+            }
         } else {
             if id.is_empty() {
                 Some(&mut self.root)

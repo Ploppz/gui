@@ -16,10 +16,6 @@ impl Button {
         );
         Button { children }
     }
-    /// Wrap in a `Widget`
-    pub fn wrap(self) -> Widget {
-        Widget::new(String::new(), self)
-    }
 }
 impl Interactive for Button {
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
@@ -40,8 +36,8 @@ impl Interactive for Button {
     fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
     }
-    fn insert_child(&mut self, id: String, w: Widget) -> Option<()> {
-        self.children.insert(id, w);
+    fn insert_child(&mut self, w: Widget) -> Option<()> {
+        self.children.insert(w.get_id().to_string(), w);
         Some(())
     }
     fn default_size_hint(&self) -> SizeHint {
@@ -66,17 +62,13 @@ impl ToggleButton {
         children.insert(
             id.clone(),
             TextField::new(text)
-                .wrap()
+                .wrap(id)
                 .placement(Placement::fixed(0.0, 0.0)),
         );
         ToggleButton {
             children,
             state: false,
         }
-    }
-    /// Wrap in a `Widget`
-    pub fn wrap(self) -> Widget {
-        Widget::new(String::new(), self)
     }
 }
 impl Interactive for ToggleButton {
@@ -103,8 +95,8 @@ impl Interactive for ToggleButton {
     fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
     }
-    fn insert_child(&mut self, id: String, w: Widget) -> Option<()> {
-        self.children.insert(id, w);
+    fn insert_child(&mut self, w: Widget) -> Option<()> {
+        self.children.insert(w.get_id().to_string(), w);
         Some(())
     }
     fn default_size_hint(&self) -> SizeHint {
@@ -114,5 +106,32 @@ impl Interactive for ToggleButton {
             left: 2.0,
             right: 2.0,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::test::*;
+    use crate::*;
+    use winit::event::*;
+    use winput::*;
+    #[test]
+    fn test_toggle_button_state() {
+        let mut gui = single_toggle_button();
+
+        // Frame 1: press
+        let mut input = Input::default();
+        press_left_mouse(&mut input);
+        let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+
+        // Frame 2: release
+        input.prepare_for_next_frame();
+        release_left_mouse(&mut input);
+        let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+        assert_events!(events, vec![WidgetEvent::Release]);
+
+        let btn = gui.get_widget("B1").unwrap();
+        let btn = btn.downcast_ref::<ToggleButton>().unwrap();
+        assert_eq!(btn.state, true);
     }
 }
