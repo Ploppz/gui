@@ -4,6 +4,9 @@ pub enum Placement {
     Fixed(Position),
     Float(Axis, Anchor),
 }
+// each axis has an anchor
+// each axis can be Float, Fixed(f32), Percentage(f32)
+
 impl Placement {
     pub fn fixed(x: f32, y: f32) -> Self {
         Self::Fixed(Position {

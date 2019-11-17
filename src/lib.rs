@@ -184,15 +184,15 @@ impl Widget {
             };
             if child_relative_pos != child.pos {
                 event!(
-                    WidgetEvent::ChangePos(child_relative_pos.0, child_relative_pos.1),
+                    WidgetEvent::ChangePos,
                     (child, events)
                 );
             }
             if child.pos.0 + child.size.0 > max_width {
-                max_width = child.pos.0 + child.size.0;
+                max_width = child_relative_pos.0 + child.size.0;
             }
             if child.pos.1 + child.size.1 > max_height {
-                max_height = child.pos.1 + child.size.1;
+                max_height = child_relative_pos.1 + child.size.1;
             }
             child.pos.0 = child_relative_pos.0 + pos.0;
             child.pos.1 = child_relative_pos.1 + pos.1;
@@ -208,7 +208,7 @@ impl Widget {
             self.size = (max_width + left + right, max_height + top + bot);
             if size != self.size {
                 event!(
-                    WidgetEvent::ChangeSize(self.size.0, self.size.1),
+                    WidgetEvent::ChangeSize,
                     (self, events)
                 );
             }
@@ -235,8 +235,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// desired (e.g. round things).
     fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
         let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
-        let (top, bot, right, left) = (y + h / 2.0, y - h / 2.0, x + w / 2.0, x - w / 2.0);
-        mouse.1 > bot && mouse.1 < top && mouse.0 > left && mouse.0 < right
+        let (top, bot, right, left) = (y, y + h, x + w, x);
+        mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
     }
     /// Returns true if some internal state has changed in this widget (not in children)
     fn handle_event(&mut self, event: WidgetEvent) -> bool;
@@ -273,8 +273,8 @@ pub enum WidgetEvent {
     Release,
     Hover,
     Unhover,
-    ChangePos(f32, f32),
-    ChangeSize(f32, f32),
+    ChangePos,
+    ChangeSize,
     /// Change to any internal state
     Change,
     // TODO: perhaps something to notify that position has changed

@@ -122,12 +122,12 @@ mod test {
         // Frame 1: press
         let mut input = Input::default();
         press_left_mouse(&mut input);
-        let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+        let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
 
         // Frame 2: release
         input.prepare_for_next_frame();
         release_left_mouse(&mut input);
-        let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+        let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
         assert_events!(events, vec![WidgetEvent::Release]);
 
         let btn = gui.get_widget("B1").unwrap();

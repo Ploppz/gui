@@ -81,7 +81,7 @@ fn test_button_press_capture_and_events() {
     let mut input = Input::default();
     press_left_mouse(&mut input);
     // NOTE: gui.update() ignores `input`'s mouse position, as a transformed one is passed:
-    let (events, capture) = gui.update(&input, 0.0, 0.0, (100.0, 100.0));
+    let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
     let relevant_events = events
         .into_iter()
         .filter(|event| event.0 == "B1")
@@ -93,8 +93,8 @@ fn test_button_press_capture_and_events() {
         vec![
             WidgetEvent::Press,
             WidgetEvent::Hover,
-            WidgetEvent::ChangePos(100.0, 100.0),
-            WidgetEvent::ChangeSize(26.0, 20.0)
+            WidgetEvent::ChangePos,
+            WidgetEvent::ChangeSize
         ]
     );
 }
@@ -126,8 +126,8 @@ fn test_mark_change() {
         relevant_events,
         vec![
             WidgetEvent::Change,
-            WidgetEvent::ChangePos(100.0, 100.0),
-            WidgetEvent::ChangeSize(14.0, 14.0),
+            WidgetEvent::ChangePos,
+            WidgetEvent::ChangeSize,
         ]
     );
     // Extra test:
@@ -142,7 +142,7 @@ fn test_gui_change_pos() {
         .into_iter()
         .filter(|event| event.0 == "B1")
         .collect::<Vec<_>>();
-    assert_events!(relevant_events, vec![WidgetEvent::ChangePos(100.0, 100.0)]);
+    assert_events!(relevant_events, vec![WidgetEvent::ChangePos]);
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn test_gui_paths() {
         .unwrap();
 
     // See if `update` updates paths correctly
-    gui.update(&Input::default(), 0.0, 0.0, (100.0, 100.0));
+    gui.update(&Input::default(), 0.0, 0.0, (101.0, 101.0));
     gui.get_widget("B1").unwrap();
     gui.get_widget("B1")
         .unwrap()
