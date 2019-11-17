@@ -12,7 +12,9 @@ impl Button {
         let mut children = IndexMap::new();
         children.insert(
             id.clone(),
-            Widget::new(id, TextField::new(text)).placement(Placement::fixed(0.0, 0.0)),
+            Widget::new(id,
+                TextField::new(text))
+            .placement(Placement::float().anchor(Anchor::Center)),
         );
         Button { children }
     }

@@ -32,6 +32,11 @@ impl Placement {
         self.y_anchor = a;
         self
     }
+    pub fn anchor(mut self, a: Anchor) -> Self {
+        self.x_anchor = a;
+        self.y_anchor = a;
+        self
+    }
     pub fn float() -> Self {
         Placement {
             x: PlacementAxis::Float,

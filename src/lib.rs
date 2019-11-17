@@ -165,8 +165,14 @@ impl Widget {
                     PlacementAxis::Float =>
                         match child.place.x_anchor {
                             Anchor::Min => {
+                                let x = float_progress;
                                 float_progress += child.size.0;
-                                float_progress - child.size.0 / 2.0
+                                x
+                            }
+                            Anchor::Center => {
+                                // TODO currently only one widget can reasonably have Center anchor
+                                // (others would be positioned on top)
+                                size.0 / 2.0 - child.size.0 / 2.0
                             }
                             _ => unimplemented!()
                         },
@@ -179,8 +185,21 @@ impl Widget {
                             Anchor::Max => size.1 - y,
                             Anchor::Center => unimplemented!(),
                         },
+                    PlacementAxis::Float => {
+                        match child.place.y_anchor {
+                            Anchor::Center => {
+                                println!("Center Y ... Parent size {:?}, Child size {:?} ({})", size.1, child.size.1, child.id);
+                                // TODO currently only one widget can reasonably have Center anchor
+                                // (others would be positioned on top)
+                                size.1 / 2.0 - child.size.1 / 2.0
+                            }
+                            _ => unimplemented!()
+                        }
+                    }
                     _ => unimplemented!(),
                 });
+
+            println!("Rel pos for  {}: {:?}", child.id, child_relative_pos);
             if child_relative_pos != child.pos {
                 event!(
                     WidgetEvent::ChangePos,
