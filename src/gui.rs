@@ -24,7 +24,7 @@ impl Gui {
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
-    ) -> (Vec<(String, WidgetEventState)>, Capture) {
+    ) -> (Vec<(String, WidgetEvent)>, Capture) {
         // update parent relations
         self.paths = IndexMap::new();
         update_paths_recurse(vec![], &mut self.root, &mut self.paths);

@@ -55,7 +55,7 @@ macro_rules! assert_events {
         let events_freeze = $events.clone();
         for expected_event in expected.iter() {
             if let Some(idx) = events.iter().enumerate().find_map(|(i, (_, e))| {
-                if e.event == *expected_event {
+                if *e == *expected_event {
                     Some(i)
                 } else {
                     None
@@ -71,11 +71,8 @@ macro_rules! assert_events {
         }
     };
 }
-fn event_exists(events: &Vec<(String, WidgetEventState)>, target: WidgetEvent) -> bool {
-    events
-        .iter()
-        .find(|(_, event)| event.event == target)
-        .is_some()
+fn event_exists(events: &Vec<(String, WidgetEvent)>, target: WidgetEvent) -> bool {
+    events.iter().find(|(_, event)| *event == target).is_some()
 }
 
 #[test]

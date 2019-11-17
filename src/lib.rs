@@ -46,23 +46,9 @@ macro_rules! event {
     ($event:expr, ($widget:expr, $events:expr)) => {{
         let change = $widget.inner.handle_event($event);
         if change {
-            $events.push((
-                $widget.id.clone(),
-                WidgetEventState {
-                    pressed: $widget.pressed,
-                    hover: $widget.inside,
-                    event: WidgetEvent::Change,
-                },
-            ));
+            $events.push(($widget.id.clone(), WidgetEvent::Change));
         }
-        $events.push((
-            $widget.id.clone(),
-            WidgetEventState {
-                pressed: $widget.pressed,
-                hover: $widget.inside,
-                event: $event,
-            },
-        ));
+        $events.push(($widget.id.clone(), $event));
     }};
 }
 
@@ -89,6 +75,12 @@ impl Widget {
     pub fn get_id(&self) -> &str {
         &self.id
     }
+    pub fn hover(&self) -> bool {
+        self.inside
+    }
+    pub fn pressed(&self) -> bool {
+        self.pressed
+    }
     /// Mark that some internal state has changed in this Widget.
     /// For use when an application itself wants to change state of a Widget - for example toggle a
     /// button in response to a key press. A `Change` event has to be registered so that the drawer
@@ -103,7 +95,7 @@ impl Widget {
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
-    ) -> (Vec<(String, WidgetEventState)>, Capture) {
+    ) -> (Vec<(String, WidgetEvent)>, Capture) {
         let mut events = Vec::new();
         let mut capture = Capture::default();
 
@@ -144,14 +136,7 @@ impl Widget {
         }
 
         if self.changed {
-            events.push((
-                self.id.clone(),
-                WidgetEventState {
-                    pressed: self.pressed,
-                    hover: self.inside,
-                    event: WidgetEvent::Change,
-                },
-            ));
+            events.push((self.id.clone(), WidgetEvent::Change));
             self.changed = false;
         }
 
@@ -160,7 +145,7 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self, screen: (f32, f32)) -> Vec<(String, WidgetEventState)> {
+    fn update_positions(&mut self, screen: (f32, f32)) -> Vec<(String, WidgetEvent)> {
         let mut events = Vec::new();
         let (pos, size) = (self.pos, self.size);
         let children = self.children_mut();
@@ -198,7 +183,10 @@ impl Widget {
                 Placement::Percentage(_x, _y) => unimplemented!(),
             };
             if child_relative_pos != child.pos {
-                event!(WidgetEvent::ChangePos(child_relative_pos.0, child_relative_pos.1), (child, events));
+                event!(
+                    WidgetEvent::ChangePos(child_relative_pos.0, child_relative_pos.1),
+                    (child, events)
+                );
             }
             if child.pos.0 + child.size.0 > max_width {
                 max_width = child.pos.0 + child.size.0;
@@ -290,13 +278,6 @@ pub enum WidgetEvent {
     /// Change to any internal state
     Change,
     // TODO: perhaps something to notify that position has changed
-}
-
-#[derive(Clone, Debug)]
-pub struct WidgetEventState {
-    pub hover: bool,
-    pub pressed: bool,
-    pub event: WidgetEvent,
 }
 
 #[derive(Default, Debug, Copy, Clone)]
