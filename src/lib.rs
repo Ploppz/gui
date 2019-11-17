@@ -59,7 +59,7 @@ impl Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
-            place: Placement::Float(Axis::X, Anchor::Min),
+            place: Placement::float(),
             anchor: (Anchor::Min, Anchor::Min),
             size_hint,
             inside: false,
@@ -154,34 +154,33 @@ impl Widget {
         let mut max_height = 0.0;
 
         for child in children {
-            let child_relative_pos = match child.place {
-                Placement::Fixed(Position {
-                    x,
-                    y,
-                    x_anchor,
-                    y_anchor,
-                }) => (
-                    match x_anchor {
-                        Anchor::Min => x,
-                        Anchor::Max => size.0 - x,
-                        Anchor::Center => unimplemented!(),
-                    },
-                    match y_anchor {
-                        Anchor::Min => y,
-                        Anchor::Max => size.1 - y,
-                        Anchor::Center => unimplemented!(),
-                    },
-                ),
-                Placement::Float(axis, anchor) => {
-                    if let (Axis::X, Anchor::Min) = (axis, anchor) {
-                        float_progress += child.size.0;
-                        (float_progress - child.size.0 / 2.0, 0.0)
-                    } else {
-                        unimplemented!();
-                    }
-                }
-                Placement::Percentage(_x, _y) => unimplemented!(),
-            };
+            let child_relative_pos = (
+                match child.place.x {
+                    PlacementAxis::Fixed(x) =>
+                        match child.place.x_anchor {
+                            Anchor::Min => x,
+                            Anchor::Max => size.0 - x,
+                            Anchor::Center => unimplemented!(),
+                        },
+                    PlacementAxis::Float =>
+                        match child.place.x_anchor {
+                            Anchor::Min => {
+                                float_progress += child.size.0;
+                                float_progress - child.size.0 / 2.0
+                            }
+                            _ => unimplemented!()
+                        },
+                    PlacementAxis::Percentage(_x) => unimplemented!(),
+                },
+                match child.place.y {
+                    PlacementAxis::Fixed(y) =>
+                        match child.place.y_anchor {
+                            Anchor::Min => y,
+                            Anchor::Max => size.1 - y,
+                            Anchor::Center => unimplemented!(),
+                        },
+                    _ => unimplemented!(),
+                });
             if child_relative_pos != child.pos {
                 event!(
                     WidgetEvent::ChangePos,
