@@ -12,9 +12,9 @@ impl Button {
         let mut children = IndexMap::new();
         children.insert(
             id.clone(),
-            Widget::new(id,
-                TextField::new(text))
-            .placement(Placement::float().anchor(Anchor::Center)),
+            TextField::new(text)
+                .wrap(id)
+                .placement(Placement::float().anchor(Anchor::Center)),
         );
         Button { children }
     }
@@ -65,7 +65,7 @@ impl ToggleButton {
             id.clone(),
             TextField::new(text)
                 .wrap(id)
-                .placement(Placement::fixed(0.0, 0.0)),
+                .placement(Placement::float().anchor(Anchor::Center)),
         );
         ToggleButton {
             children,
