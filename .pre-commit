@@ -7,15 +7,3 @@ if [ "$code" -ne 0 ]; then
     echo "Please run \`cargo fmt' before committing"
     exit "$code"
 fi
-
-for crate in crates/*; do
-    cd "$crate"
-    cargo fmt -- --check
-    code="$?"
-
-    if [ "$code" -ne 0 ]; then
-        echo "Please run \`cargo fmt' in $crate before committing"
-        exit "$code"
-    fi
-    cd "../.."
-done
