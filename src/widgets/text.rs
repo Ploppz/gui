@@ -31,4 +31,8 @@ impl Interactive for TextField {
     fn insert_child(&mut self, _w: Widget) -> Option<()> {
         None
     }
+
+    fn default_size_hint(&self) -> (SizeHint, SizeHint) {
+        (SizeHint::External, SizeHint::External)
+    }
 }

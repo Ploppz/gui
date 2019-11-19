@@ -26,7 +26,16 @@ pub struct Widget {
     /// Declarative placement (used to calculate position)
     pub place: Placement,
     pub anchor: (Anchor, Anchor),
-    pub size_hint: SizeHint,
+
+    // padding
+    pub padding_top: f32,
+    pub padding_left: f32,
+    pub padding_right: f32,
+    pub padding_bot: f32,
+
+    // size hints
+    pub size_hint_x: SizeHint,
+    pub size_hint_y: SizeHint,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -54,14 +63,19 @@ macro_rules! event {
 
 impl Widget {
     pub fn new<W: Interactive>(id: String, widget: W) -> Widget {
-        let size_hint = widget.default_size_hint();
+        let (size_hint_x, size_hint_y) = widget.default_size_hint();
         Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
             place: Placement::float(),
             anchor: (Anchor::Min, Anchor::Min),
-            size_hint,
+            padding_top: 0.0,
+            padding_bot: 0.0,
+            padding_left: 0.0,
+            padding_right: 0.0,
+            size_hint_x,
+            size_hint_y,
             inside: false,
             pressed: false,
             changed: false,
@@ -70,6 +84,13 @@ impl Widget {
     }
     pub fn placement(mut self, place: Placement) -> Self {
         self.place = place;
+        self
+    }
+    pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
+        self.padding_top = top;
+        self.padding_bot = bot;
+        self.padding_left = left;
+        self.padding_right = right;
         self
     }
     pub fn get_id(&self) -> &str {
@@ -146,31 +167,27 @@ impl Widget {
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
     fn update_positions(&mut self, screen: (f32, f32)) -> Vec<(String, WidgetEvent)> {
+        let id = self.id.clone();
         let mut events = Vec::new();
+        let mut float_progress_x = self.padding_left;
+        let mut float_progress_y = self.padding_top;
         let (pos, size) = (self.pos, self.size);
         let children = self.children_mut();
-        let mut float_progress = 0.0;
-        let mut max_width = 0.0;
-        let mut max_height = 0.0;
 
         for child in children {
+            // println!(" [{}] size = {:?}", child.id, child.size);
             let child_relative_pos = (
                 match child.place.x {
                     PlacementAxis::Fixed(x) => match child.place.x_anchor {
                         Anchor::Min => x,
                         Anchor::Max => size.0 - x,
-                        Anchor::Center => unimplemented!(),
                     },
                     PlacementAxis::Float => match child.place.x_anchor {
                         Anchor::Min => {
-                            let x = float_progress;
-                            float_progress += child.size.0;
+                            let x = float_progress_x;
+                            float_progress_x += child.size.0;
+                            // println!(" ({}) Progress for {}: {}", id, child.id, float_progress_x);
                             x
-                        }
-                        Anchor::Center => {
-                            // TODO currently only one widget can reasonably have Center anchor
-                            // (others would be positioned on top)
-                            size.0 / 2.0 - child.size.0 / 2.0
                         }
                         _ => unimplemented!(),
                     },
@@ -180,52 +197,43 @@ impl Widget {
                     PlacementAxis::Fixed(y) => match child.place.y_anchor {
                         Anchor::Min => y,
                         Anchor::Max => size.1 - y,
-                        Anchor::Center => unimplemented!(),
                     },
-                    PlacementAxis::Float => {
-                        match child.place.y_anchor {
-                            Anchor::Center => {
-                                println!(
-                                    "Center Y ... Parent size {:?}, Child size {:?} ({})",
-                                    size.1, child.size.1, child.id
-                                );
-                                // TODO currently only one widget can reasonably have Center anchor
-                                // (others would be positioned on top)
-                                size.1 / 2.0 - child.size.1 / 2.0
-                            }
-                            _ => unimplemented!(),
+                    PlacementAxis::Float => match child.place.y_anchor {
+                        Anchor::Min => {
+                            let y = float_progress_y;
+                            float_progress_y += child.size.1;
+                            y
                         }
-                    }
+                        _ => unimplemented!(),
+                    },
                     _ => unimplemented!(),
                 },
             );
 
-            println!("Rel pos for  {}: {:?}", child.id, child_relative_pos);
-            if child_relative_pos != child.pos {
+            // println!(" ({}) Rel pos for  {}: {:?}", id, child.id, child_relative_pos);
+            let new_pos = (child_relative_pos.0 + pos.0, child_relative_pos.1 + pos.1);
+            if new_pos != child.pos {
                 event!(WidgetEvent::ChangePos, (child, events));
             }
-            if child.pos.0 + child.size.0 > max_width {
-                max_width = child_relative_pos.0 + child.size.0;
-            }
-            if child.pos.1 + child.size.1 > max_height {
-                max_height = child_relative_pos.1 + child.size.1;
-            }
+            child.pos = new_pos;
             child.pos.0 = child_relative_pos.0 + pos.0;
             child.pos.1 = child_relative_pos.1 + pos.1;
         }
-        if let SizeHint::Minimize {
-            top,
-            bot,
-            left,
-            right,
-        } = self.size_hint
-        {
-            let size = self.size.clone();
-            self.size = (max_width + left + right, max_height + top + bot);
-            if size != self.size {
-                event!(WidgetEvent::ChangeSize, (self, events));
-            }
+        float_progress_x += self.padding_right;
+        float_progress_y += self.padding_bot;
+
+        let mut new_size = self.size;
+        if self.size_hint_x == SizeHint::Minimize {
+            new_size.0 = float_progress_x;
         }
+        if self.size_hint_y == SizeHint::Minimize {
+            new_size.1 = float_progress_y;
+        }
+        if new_size != self.size {
+            self.size = new_size;
+            event!(WidgetEvent::ChangeSize, (self, events));
+        }
+
         events
     }
 }
@@ -263,11 +271,6 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
     fn insert_child(&mut self, w: Widget) -> Option<()>;
 
-    /// Default size hint for this widget type. Defaults to `SizeHint::None`
-    fn default_size_hint(&self) -> SizeHint {
-        SizeHint::None
-    }
-
     fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
             self.children().chain(
@@ -276,6 +279,9 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
                     .flatten(),
             ),
         )
+    }
+    fn default_size_hint(&self) -> (SizeHint, SizeHint) {
+        (SizeHint::Minimize, SizeHint::Minimize)
     }
 }
 mopafy!(Interactive);

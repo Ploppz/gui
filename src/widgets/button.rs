@@ -12,9 +12,7 @@ impl Button {
         let mut children = IndexMap::new();
         children.insert(
             id.clone(),
-            TextField::new(text)
-                .wrap(id)
-                .placement(Placement::float().anchor(Anchor::Center)),
+            TextField::new(text).wrap(id).placement(Placement::float()),
         );
         Button { children }
     }
@@ -42,14 +40,6 @@ impl Interactive for Button {
         self.children.insert(w.get_id().to_string(), w);
         Some(())
     }
-    fn default_size_hint(&self) -> SizeHint {
-        SizeHint::Minimize {
-            top: 5.0,
-            bot: 5.0,
-            left: 8.0,
-            right: 8.0,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -63,9 +53,7 @@ impl ToggleButton {
         let mut children = IndexMap::new();
         children.insert(
             id.clone(),
-            TextField::new(text)
-                .wrap(id)
-                .placement(Placement::float().anchor(Anchor::Center)),
+            TextField::new(text).wrap(id).placement(Placement::float()),
         );
         ToggleButton {
             children,
@@ -100,14 +88,6 @@ impl Interactive for ToggleButton {
     fn insert_child(&mut self, w: Widget) -> Option<()> {
         self.children.insert(w.get_id().to_string(), w);
         Some(())
-    }
-    fn default_size_hint(&self) -> SizeHint {
-        SizeHint::Minimize {
-            top: 2.0,
-            bot: 2.0,
-            left: 2.0,
-            right: 2.0,
-        }
     }
 }
 

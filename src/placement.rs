@@ -57,18 +57,16 @@ pub enum Axis {
 pub enum Anchor {
     Min,
     Max,
-    Center,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SizeHint {
-    None,
-    /// Minimize, with internal padding
-    Minimize {
-        top: f32,
-        bot: f32,
-        left: f32,
-        right: f32,
-    },
-    Percentage(f32, f32),
+    /// Size is given externally - by application or rendering.
+    /// For example, a text field's size is determined by the render engine.
+    External,
+    /// Size is determined by the size of children.
+    /// Size will be set to exactly contain children (plus eventual padding).
+    Minimize,
+    // Percentage(f32, f32),
+    // TODO ^ rather try "flex factors" like in Flutter
 }

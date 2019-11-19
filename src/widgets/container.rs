@@ -35,7 +35,4 @@ impl Interactive for Container {
         self.children.insert(w.get_id().to_string(), w);
         Some(())
     }
-    fn default_size_hint(&self) -> SizeHint {
-        SizeHint::None
-    }
 }
