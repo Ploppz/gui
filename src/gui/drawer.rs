@@ -9,6 +9,7 @@
 //! (Currently there are none)
 
 use crate::*;
+use slog::Logger;
 
 pub trait GuiDrawer: Sized {
     type Context;
@@ -18,6 +19,7 @@ pub trait GuiDrawer: Sized {
         &self,
         gui: &Gui<Self>,
         events: &[(String, WidgetEvent)],
+        log: Logger,
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
 }
@@ -36,6 +38,7 @@ impl GuiDrawer for NoDrawer {
         &self,
         _gui: &Gui<Self>,
         _events: &[(String, WidgetEvent)],
+        _log: Logger,
         _ctx: &mut Self::Context,
     ) -> Vec<WidgetOp> {
         Vec::new()

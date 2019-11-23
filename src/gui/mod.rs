@@ -35,7 +35,7 @@ impl<D: GuiDrawer> Gui<D> {
         self.paths = IndexMap::new();
         update_paths_recurse(vec![], &mut self.root, &mut self.paths);
         let (events, capture) = self.root.update(input, sw, sh, mouse);
-        let ops = self.drawer.update(self, &events, ctx);
+        let ops = self.drawer.update(self, &events, log, ctx);
         for op in ops {
             match op {
                 WidgetOp::Resize { id, size } => {
