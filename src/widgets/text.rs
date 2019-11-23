@@ -25,7 +25,10 @@ impl Interactive for TextField {
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
         Box::new(std::iter::empty())
     }
-    fn get_child(&mut self, _id: &str) -> Option<&mut Widget> {
+    fn get_child(&self, _id: &str) -> Option<&Widget> {
+        None
+    }
+    fn get_child_mut(&mut self, _id: &str) -> Option<&mut Widget> {
         None
     }
     fn insert_child(&mut self, _w: Widget) -> Option<()> {

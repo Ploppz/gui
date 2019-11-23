@@ -121,7 +121,7 @@ impl Widget {
         let mut capture = Capture::default();
 
         // Update positions of children (and possibly size of self)
-        let pos_events = self.update_positions((sw, sh));
+        let pos_events = self.update_positions();
         events.extend(pos_events.into_iter());
 
         // Update children
@@ -166,8 +166,8 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self, screen: (f32, f32)) -> Vec<(String, WidgetEvent)> {
-        let id = self.id.clone();
+    fn update_positions(&mut self) -> Vec<(String, WidgetEvent)> {
+        // let id = self.id.clone();
         let mut events = Vec::new();
         let mut float_progress_x = self.padding_left;
         let mut float_progress_y = self.padding_top;
@@ -268,7 +268,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
 
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
     fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
-    fn get_child(&mut self, id: &str) -> Option<&mut Widget>;
+    fn get_child(&self, id: &str) -> Option<&Widget>;
+    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget>;
     fn insert_child(&mut self, w: Widget) -> Option<()>;
 
     fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {

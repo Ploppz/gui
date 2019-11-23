@@ -26,25 +26,25 @@ pub fn mouse_pressed() -> MouseInput {
         modifiers: ModifiersState::default(),
     }
 }
-pub fn single_button() -> Gui {
-    let mut gui = Gui::new();
+pub fn single_button() -> Gui<NoDrawer> {
+    let mut gui = Gui::new(NoDrawer);
     gui.insert_widget_in_root(
         Button::new("B1".to_string())
             .wrap("B1".to_string())
             .placement(Placement::fixed(100.0, 100.0)),
     );
     // NOTE: maybe a bad solution right now but size is (0.0, 0.0) by default because it depends on rendering
-    gui.get_widget("B1").unwrap().size = (50.0, 50.0);
+    gui.get_widget_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
-pub fn single_toggle_button() -> Gui {
-    let mut gui = Gui::new();
+pub fn single_toggle_button() -> Gui<NoDrawer> {
+    let mut gui = Gui::new(NoDrawer);
     gui.insert_widget_in_root(
         ToggleButton::new("B1".to_string())
             .wrap("B1".to_string())
             .placement(Placement::fixed(100.0, 100.0)),
     );
-    gui.get_widget("B1").unwrap().size = (50.0, 50.0);
+    gui.get_widget_mut("B1").unwrap().size = (50.0, 50.0);
     gui
 }
 #[macro_export]
@@ -71,9 +71,6 @@ macro_rules! assert_events {
         }
     };
 }
-fn event_exists(events: &Vec<(String, WidgetEvent)>, target: WidgetEvent) -> bool {
-    events.iter().find(|(_, event)| *event == target).is_some()
-}
 
 #[test]
 fn test_button_press_capture_and_events() {
@@ -81,7 +78,7 @@ fn test_button_press_capture_and_events() {
     let mut input = Input::default();
     press_left_mouse(&mut input);
     // NOTE: gui.update() ignores `input`'s mouse position, as a transformed one is passed:
-    let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
+    let (events, capture) = gui.update(&input, &mut ());
     let relevant_events = events
         .into_iter()
         .filter(|event| event.0 == "B1")
@@ -105,17 +102,17 @@ fn test_mark_change() {
 
     // Manually change the toggle button
     println!("{:?}", gui.get_widget("B1").unwrap());
-    gui.get_widget("B1")
+    gui.get_widget_mut("B1")
         .unwrap()
         .downcast_mut::<ToggleButton>()
         .unwrap()
         .state = true;
 
-    let button = gui.get_widget("B1").unwrap();
+    let button = gui.get_widget_mut("B1").unwrap();
     button.mark_change();
     button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
-    let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
+    let (events, capture) = gui.update(&Input::default(), &mut ());
     let relevant_events = events
         .into_iter()
         .filter(|event| event.0 == "B1")
@@ -137,7 +134,7 @@ fn test_mark_change() {
 #[test]
 fn test_gui_change_pos() {
     let mut gui = single_toggle_button();
-    let (events, capture) = gui.update(&Input::default(), 0.0, 0.0, (0.0, 0.0));
+    let (events, _capture) = gui.update(&Input::default(), &mut ());
     let relevant_events = events
         .into_iter()
         .filter(|event| event.0 == "B1")
@@ -154,7 +151,7 @@ fn test_button_inside() {
 fn test_gui_paths() {
     // Test that gui updates paths correctly and that get_widget() which uses said paths, works
     // correctly.
-    let mut gui = Gui::new();
+    let mut gui = Gui::new(NoDrawer);
     gui.insert_widget_in_root(
         ToggleButton::new("B1".to_string())
             .wrap("B1".to_string())
@@ -162,15 +159,15 @@ fn test_gui_paths() {
     );
 
     gui.get_widget("B1").unwrap();
-    gui.get_widget("B1")
+    gui.get_widget_mut("B1")
         .unwrap()
         .downcast_mut::<ToggleButton>()
         .unwrap();
 
     // See if `update` updates paths correctly
-    gui.update(&Input::default(), 0.0, 0.0, (101.0, 101.0));
+    gui.update(&Input::default(), &mut ());
     gui.get_widget("B1").unwrap();
-    gui.get_widget("B1")
+    gui.get_widget_mut("B1")
         .unwrap()
         .downcast_mut::<ToggleButton>()
         .unwrap();

@@ -33,7 +33,10 @@ impl Interactive for Button {
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
         Box::new(self.children.values())
     }
-    fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
+    fn get_child(&self, id: &str) -> Option<&Widget> {
+        self.children.get(id)
+    }
+    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
     }
     fn insert_child(&mut self, w: Widget) -> Option<()> {
@@ -82,7 +85,10 @@ impl Interactive for ToggleButton {
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
         Box::new(self.children.values())
     }
-    fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
+    fn get_child(&self, id: &str) -> Option<&Widget> {
+        self.children.get(id)
+    }
+    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
     }
     fn insert_child(&mut self, w: Widget) -> Option<()> {
@@ -95,8 +101,6 @@ impl Interactive for ToggleButton {
 mod test {
     use crate::test::*;
     use crate::*;
-    use winit::event::*;
-    use winput::*;
     #[test]
     fn test_toggle_button_state() {
         let mut gui = single_toggle_button();
@@ -104,12 +108,12 @@ mod test {
         // Frame 1: press
         let mut input = Input::default();
         press_left_mouse(&mut input);
-        let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
+        let (_events, _capture) = gui.update(&input, &mut ());
 
         // Frame 2: release
         input.prepare_for_next_frame();
         release_left_mouse(&mut input);
-        let (events, capture) = gui.update(&input, 0.0, 0.0, (101.0, 101.0));
+        let (events, _capture) = gui.update(&input, &mut ());
         assert_events!(events, vec![WidgetEvent::Release]);
 
         let btn = gui.get_widget("B1").unwrap();

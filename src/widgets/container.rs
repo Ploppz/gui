@@ -28,8 +28,11 @@ impl Interactive for Container {
     fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
         Box::new(self.children.values())
     }
-    fn get_child(&mut self, id: &str) -> Option<&mut Widget> {
+    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget> {
         self.children.get_mut(id)
+    }
+    fn get_child(&self, id: &str) -> Option<&Widget> {
+        self.children.get(id)
     }
     fn insert_child(&mut self, w: Widget) -> Option<()> {
         self.children.insert(w.get_id().to_string(), w);
