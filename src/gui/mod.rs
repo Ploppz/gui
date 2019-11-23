@@ -1,6 +1,6 @@
 use crate::*;
 use indexmap::IndexMap;
-
+use slog::Logger;
 mod drawer;
 pub use drawer::*;
 
@@ -26,6 +26,7 @@ impl<D: GuiDrawer> Gui<D> {
     pub fn update(
         &mut self,
         input: &Input,
+        log: Logger,
         ctx: &mut D::Context,
     ) -> (Vec<(String, WidgetEvent)>, Capture) {
         let mouse = self.drawer.transform_mouse(input.get_mouse_position(), ctx);
@@ -37,10 +38,8 @@ impl<D: GuiDrawer> Gui<D> {
         let ops = self.drawer.update(self, &events, ctx);
         for op in ops {
             match op {
-                WidgetOp::Resize {id, size} => {
-                    self.get_widget_mut(&id)
-                        .unwrap()
-                        .size = size;
+                WidgetOp::Resize { id, size } => {
+                    self.get_widget_mut(&id).unwrap().size = size;
                 }
             }
         }
