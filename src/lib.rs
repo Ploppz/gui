@@ -2,7 +2,10 @@
 extern crate mopa;
 #[macro_use]
 extern crate derive_deref;
+#[macro_use]
+extern crate slog;
 use mopa::Any;
+use slog::Logger;
 use winput::Input;
 
 mod gui;
@@ -25,7 +28,6 @@ pub struct Widget {
 
     /// Declarative placement (used to calculate position)
     pub place: Placement,
-    pub anchor: (Anchor, Anchor),
 
     // padding
     pub padding_top: f32,
@@ -69,7 +71,6 @@ impl Widget {
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
             place: Placement::float(),
-            anchor: (Anchor::Min, Anchor::Min),
             padding_top: 0.0,
             padding_bot: 0.0,
             padding_left: 0.0,
@@ -84,6 +85,11 @@ impl Widget {
     }
     pub fn placement(mut self, place: Placement) -> Self {
         self.place = place;
+        self
+    }
+    pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
+        self.size_hint_x = x;
+        self.size_hint_y = y;
         self
     }
     pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
@@ -116,17 +122,18 @@ impl Widget {
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
+        log: Logger,
     ) -> (Vec<(String, WidgetEvent)>, Capture) {
         let mut events = Vec::new();
         let mut capture = Capture::default();
 
         // Update positions of children (and possibly size of self)
-        let pos_events = self.update_positions();
+        let pos_events = self.update_positions(log.clone());
         events.extend(pos_events.into_iter());
 
         // Update children
         for child in self.children_mut() {
-            let (child_events, child_capture) = child.update(input, sw, sh, mouse);
+            let (child_events, child_capture) = child.update(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
@@ -166,7 +173,7 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self) -> Vec<(String, WidgetEvent)> {
+    fn update_positions(&mut self, log: Logger) -> Vec<(String, WidgetEvent)> {
         // let id = self.id.clone();
         let mut events = Vec::new();
         let mut float_progress_x = self.padding_left;
@@ -180,13 +187,12 @@ impl Widget {
                 match child.place.x {
                     PlacementAxis::Fixed(x) => match child.place.x_anchor {
                         Anchor::Min => x,
-                        Anchor::Max => size.0 - x,
+                        Anchor::Max => size.0 - child.size.0 - x,
                     },
                     PlacementAxis::Float => match child.place.x_anchor {
                         Anchor::Min => {
                             let x = float_progress_x;
                             float_progress_x += child.size.0;
-                            // println!(" ({}) Progress for {}: {}", id, child.id, float_progress_x);
                             x
                         }
                         _ => unimplemented!(),
@@ -196,7 +202,7 @@ impl Widget {
                 match child.place.y {
                     PlacementAxis::Fixed(y) => match child.place.y_anchor {
                         Anchor::Min => y,
-                        Anchor::Max => size.1 - y,
+                        Anchor::Max => size.1 - child.size.1 - y,
                     },
                     PlacementAxis::Float => match child.place.y_anchor {
                         Anchor::Min => {
@@ -295,7 +301,8 @@ pub enum WidgetEvent {
     Unhover,
     ChangePos,
     ChangeSize,
-    /// Change to any internal state
+    /// Change to any internal state.
+    /// Also issued upon first discovery of widget.
     Change,
     // TODO: perhaps something to notify that position has changed
 }

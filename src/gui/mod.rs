@@ -10,17 +10,22 @@ pub struct Gui<D: GuiDrawer> {
     screen: (f32, f32),
     drawer: D,
     pub paths: IndexMap<String, Vec<String>>,
+
+    /// Events collected outside update function, consumed when update is called
+    events: Vec<(String, WidgetEvent)>,
 }
 
 impl<D: GuiDrawer> Gui<D> {
     pub fn new(drawer: D) -> Gui<D> {
-        let root =
-            Widget::new(String::new(), Container::new()).placement(Placement::fixed(0.0, 0.0));
+        let root = Widget::new(String::new(), Container::new())
+            .placement(Placement::fixed(0.0, 0.0))
+            .size_hint(SizeHint::External, SizeHint::External);
         Gui {
             root,
             drawer,
             screen: (0.0, 0.0),
             paths: IndexMap::new(),
+            events: Vec::new(),
         }
     }
     pub fn update(
@@ -31,15 +36,18 @@ impl<D: GuiDrawer> Gui<D> {
     ) -> (Vec<(String, WidgetEvent)>, Capture) {
         let mouse = self.drawer.transform_mouse(input.get_mouse_position(), ctx);
         let (sw, sh) = self.drawer.window_size(ctx);
+        self.root.size = (sw, sh);
         // update parent relations
         self.paths = IndexMap::new();
-        update_paths_recurse(vec![], &mut self.root, &mut self.paths);
-        let (events, capture) = self.root.update(input, sw, sh, mouse);
+        let (mut events, capture) = self.root.update(input, sw, sh, mouse, log.clone());
+        update_paths_recurse(vec![], &mut self.root, &mut self.paths, &mut events);
+        events.extend(std::mem::replace(&mut self.events, Vec::new()));
         let ops = self.drawer.update(self, &events, log, ctx);
         for op in ops {
             match op {
                 WidgetOp::Resize { id, size } => {
                     self.get_widget_mut(&id).unwrap().size = size;
+                    events.push((id, WidgetEvent::ChangeSize));
                 }
             }
         }
@@ -53,7 +61,8 @@ impl<D: GuiDrawer> Gui<D> {
             // Update paths
             let mut path = self.paths[parent_id].clone();
             path.push(parent_id.to_string());
-            self.paths.insert(id, path);
+            self.paths.insert(id.clone(), path);
+            self.events.push((id, WidgetEvent::Change));
             Some(())
         } else {
             None
@@ -62,7 +71,8 @@ impl<D: GuiDrawer> Gui<D> {
     pub fn insert_widget_in_root(&mut self, widget: Widget) {
         let id = widget.get_id().to_string();
         self.root.insert_child(widget);
-        self.paths.insert(id, vec![]);
+        self.paths.insert(id.clone(), vec![]);
+        self.events.push((id, WidgetEvent::Change));
     }
     pub fn get_widget(&self, id: &str) -> Option<&Widget> {
         if id.is_empty() {
@@ -131,12 +141,17 @@ fn update_paths_recurse(
     current_path: Vec<String>,
     w: &mut Widget,
     paths: &mut IndexMap<String, Vec<String>>,
+    events: &mut Vec<(String, WidgetEvent)>,
 ) {
     for child in w.children_mut() {
+        if !paths.contains_key(child.get_id()) {
+            // If not known, issue a `Create` event
+            events.push((child.get_id().to_string(), WidgetEvent::Change));
+        }
         paths.insert(child.get_id().to_string(), current_path.clone());
 
         let mut child_path = current_path.clone();
         child_path.push(child.get_id().to_string());
-        update_paths_recurse(child_path, child, paths);
+        update_paths_recurse(child_path, child, paths, events);
     }
 }
