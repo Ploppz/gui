@@ -8,83 +8,78 @@ fn test_idempotent_positioning() {
     // Verify that updating once is enough to complete positioning/sizing/layouting
     let mut fix = TestFixture::fixture();
     fix.update();
-    for i in 0..4 {
+    for _ in 0..4 {
         let (e, _) = fix.update();
         assert_eq!(e.len(), 0);
     }
 }
 
 #[test]
-fn test_button_press_capture_and_events() {
-    let log = slog::Logger::root(slog::Discard, o!());
+fn test_button_click_capture_and_events() {
     let mut fix = TestFixture::fixture();
     fix.update();
 
-    let ((events, capture), (_, _)) = fix.click_widget("ToggleButton 0");
+    let ((press_events, press_capture), (release_events, release_capture)) =
+        fix.click_widget("ToggleButton 0");
 
-    let relevant_events = events
+    let relevant_events = press_events
         .into_iter()
         .filter(|event| event.0 == "ToggleButton 0")
+        .chain(
+            release_events
+                .into_iter()
+                .filter(|event| event.0 == "ToggleButton 0"),
+        )
         .collect::<Vec<_>>();
-    assert!(capture.mouse);
+    assert!(press_capture.mouse);
+    assert!(release_capture.mouse);
     assert_eq!(relevant_events.len(), 4);
     assert_events!(
         relevant_events,
         vec![
-            WidgetEvent::Press,
             WidgetEvent::Hover,
-            WidgetEvent::ChangePos,
-            WidgetEvent::ChangeSize
+            WidgetEvent::Press,
+            WidgetEvent::Change,
+            WidgetEvent::Release,
         ]
     );
 }
 
 #[test]
 fn test_mark_change() {
-    let log = slog::Logger::root(slog::Discard, o!());
-    let mut gui = single_toggle_button();
+    let mut fix = TestFixture::fixture();
+    fix.update();
 
     // Manually change the toggle button
-    println!("{:?}", gui.get_widget("B1").unwrap());
-    gui.get_widget_mut("B1")
-        .unwrap()
-        .downcast_mut::<ToggleButton>()
-        .unwrap()
-        .state = true;
 
-    let button = gui.get_widget_mut("B1").unwrap();
+    let button = fix.gui.get_widget_mut("ToggleButton 0").unwrap();
     button.mark_change();
     button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
-    let (events, capture) = gui.update(&Input::default(), log, &mut ());
+    let (events, capture) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| event.0 == "B1")
+        .filter(|event| event.0 == "ToggleButton 0")
         .collect::<Vec<_>>();
     println!("{:?}", relevant_events);
-    assert_eq!(relevant_events.len(), 3);
-    assert_events!(
-        relevant_events,
-        vec![
-            WidgetEvent::Change,
-            WidgetEvent::ChangePos,
-            WidgetEvent::ChangeSize,
-        ]
-    );
+    assert_eq!(relevant_events.len(), 1);
+    assert_events!(relevant_events, vec![WidgetEvent::Change,]);
     // Extra test:
     assert!(!capture.mouse);
 }
 
 #[test]
 fn test_gui_change_pos() {
-    let log = slog::Logger::root(slog::Discard, o!());
-    let mut gui = single_toggle_button();
-    let (events, _capture) = gui.update(&Input::default(), log, &mut ());
+    let mut fix = TestFixture::fixture();
+    let (events, _) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| event.0 == "B1")
+        .filter(|event| event.0 == "Button 1")
         .collect::<Vec<_>>();
-    assert_events!(relevant_events, vec![WidgetEvent::ChangePos]);
+    assert_events!(
+        relevant_events,
+        vec![WidgetEvent::ChangePos, WidgetEvent::ChangeSize]
+    );
 }
 
 #[test]
@@ -96,25 +91,29 @@ fn test_button_inside() {
 fn test_gui_paths() {
     // Test that gui updates paths correctly and that get_widget() which uses said paths, works
     // correctly.
-    let log = slog::Logger::root(slog::Discard, o!());
-    let mut gui = Gui::new(NoDrawer);
-    gui.insert_widget_in_root(
-        ToggleButton::new("B1".to_string())
-            .wrap("B1".to_string())
-            .placement(Placement::fixed(100.0, 100.0)),
-    );
+    let mut fix = TestFixture::fixture();
 
-    gui.get_widget("B1").unwrap();
-    gui.get_widget_mut("B1")
-        .unwrap()
-        .downcast_mut::<ToggleButton>()
-        .unwrap();
+    for (id, expect) in fix.expected.iter() {
+        fix.gui.get_widget(id).unwrap();
+    }
 
     // See if `update` updates paths correctly
-    gui.update(&Input::default(), log, &mut ());
-    gui.get_widget("B1").unwrap();
-    gui.get_widget_mut("B1")
-        .unwrap()
-        .downcast_mut::<ToggleButton>()
-        .unwrap();
+    fix.update();
+    for (id, expect) in fix.expected.iter() {
+        fix.gui.get_widget(id).unwrap();
+
+        if id.starts_with("ToggleButton ") {
+            fix.gui
+                .get_widget_mut(id)
+                .unwrap()
+                .downcast_mut::<ToggleButton>()
+                .unwrap();
+        } else if id.starts_with("Button ") {
+            fix.gui
+                .get_widget_mut(id)
+                .unwrap()
+                .downcast_mut::<Button>()
+                .unwrap();
+        }
+    }
 }
