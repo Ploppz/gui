@@ -8,9 +8,8 @@ pub struct Placement {
 
 #[derive(Copy, Clone, Debug)]
 pub enum PlacementAxis {
-    Percentage(f32),
+    // Percentage(f32),
     Fixed(f32),
-    Float,
 }
 // each axis has an anchor
 // each axis can be Float, Fixed(f32), Percentage(f32)
@@ -37,14 +36,6 @@ impl Placement {
         self.y_anchor = a;
         self
     }
-    pub fn float() -> Self {
-        Placement {
-            x: PlacementAxis::Float,
-            y: PlacementAxis::Float,
-            x_anchor: Anchor::Min,
-            y_anchor: Anchor::Min,
-        }
-    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -52,10 +43,19 @@ pub enum Axis {
     X,
     Y,
 }
+impl Axis {
+    pub fn other(self) -> Axis {
+        match self {
+            Axis::X => Axis::Y,
+            Axis::Y => Axis::X,
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub enum Anchor {
     Min,
+    Center,
     Max,
 }
 
@@ -69,4 +69,12 @@ pub enum SizeHint {
     Minimize,
     // Percentage(f32, f32),
     // TODO ^ rather try "flex factors" like in Flutter
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ChildrenLayout {
+    /// Children are only stacked along X axis
+    StackX,
+    /// Children are only stacked along Y axis
+    StackY,
 }

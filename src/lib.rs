@@ -1,3 +1,9 @@
+//! # Gui
+//!
+//! ## Layout
+//! The *main axis* is the axis along which widgets are stacked. The other axis is called the
+//! *cross axis*.
+//!
 #[macro_use]
 extern crate mopa;
 #[macro_use]
@@ -23,11 +29,19 @@ mod test;
 pub struct Widget {
     #[deref_target]
     pub inner: Box<dyn Interactive>,
+    /// Current position as calculated by layout algorithm
     pub pos: (f32, f32),
+    /// Current size as calculated by layout algorithm
     pub size: (f32, f32),
 
-    /// Declarative placement (used to calculate position)
-    pub place: Placement,
+    /// Optional positioning; makes this widget not participate in its siblings' layout
+    pub place: Option<Placement>,
+    /// The axis along which to stack children
+    pub layout_direction: Axis,
+    /// If true, children are stacked in the cross axis when the main axis fills up.
+    pub layout_wrap: bool,
+    /// Alignment of children along the cross axis (the axis which is not the direction).
+    pub layout_align: Anchor,
 
     // padding
     pub padding_top: f32,
@@ -70,7 +84,12 @@ impl Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
-            place: Placement::float(),
+
+            place: None,
+            layout_direction: Axis::X,
+            layout_wrap: false,
+            layout_align: Anchor::Min,
+
             padding_top: 0.0,
             padding_bot: 0.0,
             padding_left: 0.0,
@@ -84,7 +103,7 @@ impl Widget {
         }
     }
     pub fn placement(mut self, place: Placement) -> Self {
-        self.place = place;
+        self.place = Some(place);
         self
     }
     pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
@@ -173,48 +192,57 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self, log: Logger) -> Vec<(String, WidgetEvent)> {
+    fn update_positions(&mut self, _log: Logger) -> Vec<(String, WidgetEvent)> {
+        if self.layout_wrap {
+            unimplemented!()
+        }
         // let id = self.id.clone();
         let mut events = Vec::new();
-        let mut float_progress_x = self.padding_left;
-        let mut float_progress_y = self.padding_top;
         let (pos, size) = (self.pos, self.size);
-        let children = self.children_mut();
+        let layout_align = self.layout_align;
 
-        for child in children {
-            // println!(" [{}] size = {:?}", child.id, child.size);
-            let child_relative_pos = (
-                match child.place.x {
-                    PlacementAxis::Fixed(x) => match child.place.x_anchor {
-                        Anchor::Min => x,
-                        Anchor::Max => size.0 - child.size.0 - x,
+        let (main_axis, cross_axis) = (self.layout_direction, self.layout_direction.other());
+
+        let mut layout_progress = match self.layout_direction {
+            Axis::X => self.padding_left,
+            Axis::Y => self.padding_top,
+        };
+        // max width/height along cross axis
+        let mut cross_size = 0.0;
+
+        for child in self.children_mut() {
+            let mut child_relative_pos = (0.0, 0.0);
+            if let Some(place) = child.place {
+                // Child does not participate in layout
+                child_relative_pos = (
+                    match place.x {
+                        PlacementAxis::Fixed(x) => match place.x_anchor {
+                            Anchor::Min => x,
+                            Anchor::Center => (size.0 - child.size.0) / 2.0 + x,
+                            Anchor::Max => size.0 - child.size.0 - x,
+                        },
                     },
-                    PlacementAxis::Float => match child.place.x_anchor {
-                        Anchor::Min => {
-                            let x = float_progress_x;
-                            float_progress_x += child.size.0;
-                            x
-                        }
-                        _ => unimplemented!(),
+                    match place.y {
+                        PlacementAxis::Fixed(y) => match place.y_anchor {
+                            Anchor::Min => y,
+                            Anchor::Center => (size.1 - child.size.1) / 2.0 + y,
+                            Anchor::Max => size.1 - child.size.1 - y,
+                        },
                     },
-                    PlacementAxis::Percentage(_x) => unimplemented!(),
-                },
-                match child.place.y {
-                    PlacementAxis::Fixed(y) => match child.place.y_anchor {
-                        Anchor::Min => y,
-                        Anchor::Max => size.1 - child.size.1 - y,
-                    },
-                    PlacementAxis::Float => match child.place.y_anchor {
-                        Anchor::Min => {
-                            let y = float_progress_y;
-                            float_progress_y += child.size.1;
-                            y
-                        }
-                        _ => unimplemented!(),
-                    },
-                    _ => unimplemented!(),
-                },
-            );
+                );
+            } else {
+                // Layout algorithm
+                child_relative_pos[main_axis] = layout_progress;
+                layout_progress += child.size[main_axis];
+                child_relative_pos[cross_axis] = match layout_align {
+                    Anchor::Min => 0.0,
+                    Anchor::Center => (size[cross_axis] - child.size[cross_axis]) / 2.0,
+                    Anchor::Max => unimplemented!(),
+                };
+                if child.size[cross_axis] > cross_size {
+                    cross_size = child.size[cross_axis]
+                }
+            };
 
             // println!(" ({}) Rel pos for  {}: {:?}", id, child.id, child_relative_pos);
             let new_pos = (child_relative_pos.0 + pos.0, child_relative_pos.1 + pos.1);
@@ -225,15 +253,19 @@ impl Widget {
             child.pos.0 = child_relative_pos.0 + pos.0;
             child.pos.1 = child_relative_pos.1 + pos.1;
         }
-        float_progress_x += self.padding_right;
-        float_progress_y += self.padding_bot;
+
+        layout_progress += match self.layout_direction {
+            Axis::X => self.padding_right,
+            Axis::Y => self.padding_bot,
+        };
 
         let mut new_size = self.size;
-        if self.size_hint_x == SizeHint::Minimize {
-            new_size.0 = float_progress_x;
+        let size_hint = (self.size_hint_x, self.size_hint_y);
+        if size_hint[main_axis] == SizeHint::Minimize {
+            new_size[main_axis] = layout_progress;
         }
-        if self.size_hint_y == SizeHint::Minimize {
-            new_size.1 = float_progress_y;
+        if size_hint[cross_axis] == SizeHint::Minimize {
+            new_size[cross_axis] = cross_size;
         }
         if new_size != self.size {
             self.size = new_size;
@@ -316,5 +348,24 @@ impl std::ops::BitOrAssign for Capture {
     fn bitor_assign(&mut self, rhs: Self) {
         self.mouse |= rhs.mouse;
         self.keyboard |= rhs.keyboard;
+    }
+}
+
+impl<T> std::ops::Index<Axis> for (T, T) {
+    type Output = T;
+    fn index(&self, idx: Axis) -> &T {
+        match idx {
+            Axis::X => &self.0,
+            Axis::Y => &self.1,
+        }
+    }
+}
+
+impl<T> std::ops::IndexMut<Axis> for (T, T) {
+    fn index_mut(&mut self, idx: Axis) -> &mut T {
+        match idx {
+            Axis::X => &mut self.0,
+            Axis::Y => &mut self.1,
+        }
     }
 }

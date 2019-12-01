@@ -10,10 +10,7 @@ impl Button {
     pub fn new(text: String) -> Button {
         let id = Uuid::new_v4().to_string();
         let mut children = IndexMap::new();
-        children.insert(
-            id.clone(),
-            TextField::new(text).wrap(id).placement(Placement::float()),
-        );
+        children.insert(id.clone(), TextField::new(text).wrap(id));
         Button { children }
     }
 }
@@ -54,10 +51,7 @@ impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
         let id = Uuid::new_v4().to_string();
         let mut children = IndexMap::new();
-        children.insert(
-            id.clone(),
-            TextField::new(text).wrap(id).placement(Placement::float()),
-        );
+        children.insert(id.clone(), TextField::new(text).wrap(id));
         ToggleButton {
             children,
             state: false,
