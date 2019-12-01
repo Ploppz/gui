@@ -6,7 +6,7 @@ pub use drawer::*;
 
 #[derive(Debug)]
 pub struct Gui<D: GuiDrawer> {
-    root: Widget,
+    pub root: Widget,
     screen: (f32, f32),
     drawer: D,
     pub paths: IndexMap<String, Vec<String>>,

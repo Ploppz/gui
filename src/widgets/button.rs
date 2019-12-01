@@ -15,6 +15,10 @@ impl Button {
     }
 }
 impl Interactive for Button {
+    fn wrap(self, id: String) -> Widget {
+        Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
+    }
+
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false
     }
@@ -59,6 +63,9 @@ impl ToggleButton {
     }
 }
 impl Interactive for ToggleButton {
+    fn wrap(self, id: String) -> Widget {
+        Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
+    }
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {
             self.state = !self.state;
@@ -93,24 +100,18 @@ impl Interactive for ToggleButton {
 
 #[cfg(test)]
 mod test {
-    use crate::test::*;
+    use crate::test_common::*;
     use crate::*;
     #[test]
     fn test_toggle_button_state() {
-        let mut gui = single_toggle_button();
+        let mut fix = TestFixture::fixture();
+        fix.update();
 
-        // Frame 1: press
-        let mut input = Input::default();
-        press_left_mouse(&mut input);
-        let (_events, _capture) = gui.update(&input, &mut ());
+        let ((_, _), (events, _)) = fix.click_widget("ToggleButton 0");
 
-        // Frame 2: release
-        input.prepare_for_next_frame();
-        release_left_mouse(&mut input);
-        let (events, _capture) = gui.update(&input, &mut ());
         assert_events!(events, vec![WidgetEvent::Release]);
 
-        let btn = gui.get_widget("B1").unwrap();
+        let btn = fix.gui.get_widget("ToggleButton 0").unwrap();
         let btn = btn.downcast_ref::<ToggleButton>().unwrap();
         assert_eq!(btn.state, true);
     }

@@ -22,8 +22,7 @@ pub use crate::gui::*;
 pub use placement::*;
 pub use widgets::*;
 
-#[cfg(test)]
-mod test;
+pub mod test_common;
 
 #[derive(Deref, DerefMut, Debug)]
 pub struct Widget {
@@ -42,12 +41,15 @@ pub struct Widget {
     pub layout_wrap: bool,
     /// Alignment of children along the cross axis (the axis which is not the direction).
     pub layout_align: Anchor,
+    /// Space between widgets in the main axis.
+    /// TODO: should maybe be a "justify" enum where you can choose to space them evenly etc
+    pub layout_main_margin: f32,
 
     // padding
-    pub padding_top: f32,
-    pub padding_left: f32,
-    pub padding_right: f32,
-    pub padding_bot: f32,
+    /// left and top padding respectively
+    pub padding_min: (f32, f32),
+    /// right and bot padding respectively
+    pub padding_max: (f32, f32),
 
     // size hints
     pub size_hint_x: SizeHint,
@@ -89,11 +91,11 @@ impl Widget {
             layout_direction: Axis::X,
             layout_wrap: false,
             layout_align: Anchor::Min,
+            layout_main_margin: 0.0,
 
-            padding_top: 0.0,
-            padding_bot: 0.0,
-            padding_left: 0.0,
-            padding_right: 0.0,
+            padding_min: (0.0, 0.0),
+            padding_max: (0.0, 0.0),
+
             size_hint_x,
             size_hint_y,
             inside: false,
@@ -111,11 +113,21 @@ impl Widget {
         self.size_hint_y = y;
         self
     }
+    /// Fixed width
+    pub fn width(mut self, w: f32) -> Self {
+        self.size_hint_x = SizeHint::External;
+        self.size.0 = w;
+        self
+    }
+    /// Fixed height
+    pub fn height(mut self, h: f32) -> Self {
+        self.size_hint_y = SizeHint::External;
+        self.size.1 = h;
+        self
+    }
     pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
-        self.padding_top = top;
-        self.padding_bot = bot;
-        self.padding_left = left;
-        self.padding_right = right;
+        self.padding_min = (left, top);
+        self.padding_max = (right, bot);
         self
     }
     pub fn get_id(&self) -> &str {
@@ -146,16 +158,16 @@ impl Widget {
         let mut events = Vec::new();
         let mut capture = Capture::default();
 
-        // Update positions of children (and possibly size of self)
-        let pos_events = self.update_positions(log.clone());
-        events.extend(pos_events.into_iter());
-
         // Update children
         for child in self.children_mut() {
             let (child_events, child_capture) = child.update(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
+
+        // Update positions of children (and possibly size of self)
+        let pos_events = self.update_positions(log.clone());
+        events.extend(pos_events.into_iter());
 
         if !capture.mouse {
             let now_inside = self.inside(self.pos, self.size, mouse);
@@ -193,6 +205,7 @@ impl Widget {
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
     fn update_positions(&mut self, _log: Logger) -> Vec<(String, WidgetEvent)> {
+        // println!("Positioning Parent [{}]", self.id);
         if self.layout_wrap {
             unimplemented!()
         }
@@ -200,13 +213,12 @@ impl Widget {
         let mut events = Vec::new();
         let (pos, size) = (self.pos, self.size);
         let layout_align = self.layout_align;
+        let layout_main_margin = self.layout_main_margin;
+        let padding_min = self.padding_min;
 
         let (main_axis, cross_axis) = (self.layout_direction, self.layout_direction.other());
 
-        let mut layout_progress = match self.layout_direction {
-            Axis::X => self.padding_left,
-            Axis::Y => self.padding_top,
-        };
+        let mut layout_progress = self.padding_min[main_axis];
         // max width/height along cross axis
         let mut cross_size = 0.0;
 
@@ -233,9 +245,9 @@ impl Widget {
             } else {
                 // Layout algorithm
                 child_relative_pos[main_axis] = layout_progress;
-                layout_progress += child.size[main_axis];
+                layout_progress += child.size[main_axis] + layout_main_margin;
                 child_relative_pos[cross_axis] = match layout_align {
-                    Anchor::Min => 0.0,
+                    Anchor::Min => padding_min[cross_axis],
                     Anchor::Center => (size[cross_axis] - child.size[cross_axis]) / 2.0,
                     Anchor::Max => unimplemented!(),
                 };
@@ -244,7 +256,7 @@ impl Widget {
                 }
             };
 
-            // println!(" ({}) Rel pos for  {}: {:?}", id, child.id, child_relative_pos);
+            // println!("Positioning Child [{}] relative_pos={:?}", child.id, child_relative_pos);
             let new_pos = (child_relative_pos.0 + pos.0, child_relative_pos.1 + pos.1);
             if new_pos != child.pos {
                 event!(WidgetEvent::ChangePos, (child, events));
@@ -253,11 +265,9 @@ impl Widget {
             child.pos.0 = child_relative_pos.0 + pos.0;
             child.pos.1 = child_relative_pos.1 + pos.1;
         }
-
-        layout_progress += match self.layout_direction {
-            Axis::X => self.padding_right,
-            Axis::Y => self.padding_bot,
-        };
+        // because it should only be _between_ children - not after the last one
+        layout_progress -= layout_main_margin;
+        layout_progress += self.padding_max[main_axis];
 
         let mut new_size = self.size;
         let size_hint = (self.size_hint_x, self.size_hint_y);
@@ -265,7 +275,8 @@ impl Widget {
             new_size[main_axis] = layout_progress;
         }
         if size_hint[cross_axis] == SizeHint::Minimize {
-            new_size[cross_axis] = cross_size;
+            new_size[cross_axis] =
+                cross_size + self.padding_min[cross_axis] + self.padding_max[cross_axis];
         }
         if new_size != self.size {
             self.size = new_size;

@@ -36,6 +36,14 @@ impl Placement {
         self.y_anchor = a;
         self
     }
+    pub fn centered() -> Self {
+        Self {
+            x: PlacementAxis::Fixed(0.0),
+            y: PlacementAxis::Fixed(0.0),
+            x_anchor: Anchor::Center,
+            y_anchor: Anchor::Center,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -62,6 +70,7 @@ pub enum Anchor {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SizeHint {
     /// Size is given externally - by application or rendering.
+    /// In this case, size is not touched by `gui`.
     /// For example, a text field's size is determined by the render engine.
     External,
     /// Size is determined by the size of children.
@@ -69,12 +78,4 @@ pub enum SizeHint {
     Minimize,
     // Percentage(f32, f32),
     // TODO ^ rather try "flex factors" like in Flutter
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ChildrenLayout {
-    /// Children are only stacked along X axis
-    StackX,
-    /// Children are only stacked along Y axis
-    StackY,
 }
