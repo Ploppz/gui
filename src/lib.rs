@@ -28,8 +28,10 @@ pub mod test_common;
 pub struct Widget {
     #[deref_target]
     pub inner: Box<dyn Interactive>,
-    /// Current position as calculated by layout algorithm
+    /// Current absolute position as calculated by layout algorithm
     pub pos: (f32, f32),
+    /// Current relative (to parent) position as calculated by layout algorithm
+    pub rel_pos: (f32, f32),
     /// Current size as calculated by layout algorithm
     pub size: (f32, f32),
 
@@ -85,6 +87,7 @@ impl Widget {
         Widget {
             inner: Box::new(widget),
             pos: (0.0, 0.0),
+            rel_pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
 
             place: None,
@@ -146,8 +149,24 @@ impl Widget {
     pub fn mark_change(&mut self) {
         self.changed = true;
     }
-    /// Update this widget tree recursively, returning accumulated events from all nodes
+    /// Update this widget tree recursively, returning accumulated events from all nodes.
+    /// Will perform one bottom-up pass and one top-down pass.
     pub fn update(
+        &mut self,
+        input: &Input,
+        sw: f32,
+        sh: f32,
+        mouse: (f32, f32),
+        log: Logger,
+    ) -> (Vec<(String, WidgetEvent)>, Capture) {
+        let (mut e, c) = self.update_bottom_up(input, sw, sh, mouse, log);
+        self.update_top_down(&mut e);
+        (e, c)
+    }
+    /// Main update work happens here.
+    /// NOTE: Due to recursion order, during update, position of `self` is not yet known.
+    /// That's why calculating the absolute positions of widgets has to happen in a second pass.
+    fn update_bottom_up(
         &mut self,
         input: &Input,
         sw: f32,
@@ -160,13 +179,14 @@ impl Widget {
 
         // Update children
         for child in self.children_mut() {
-            let (child_events, child_capture) = child.update(input, sw, sh, mouse, log.clone());
+            let (child_events, child_capture) =
+                child.update_bottom_up(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
 
         // Update positions of children (and possibly size of self)
-        let pos_events = self.update_positions(log.clone());
+        let pos_events = self.layout_alg(log.clone());
         events.extend(pos_events.into_iter());
 
         if !capture.mouse {
@@ -201,10 +221,22 @@ impl Widget {
 
         (events, capture)
     }
+    /// Calculates absolute positions
+    fn update_top_down(&mut self, events: &mut Vec<(String, WidgetEvent)>) {
+        let pos = self.pos;
+        for child in self.children_mut() {
+            let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
+            if new_pos != child.pos {
+                event!(WidgetEvent::ChangePos, (child, events));
+                child.pos = new_pos;
+            }
+            child.update_top_down(events);
+        }
+    }
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn update_positions(&mut self, _log: Logger) -> Vec<(String, WidgetEvent)> {
+    fn layout_alg(&mut self, _log: Logger) -> Vec<(String, WidgetEvent)> {
         // println!("Positioning Parent [{}]", self.id);
         if self.layout_wrap {
             unimplemented!()
@@ -257,13 +289,7 @@ impl Widget {
             };
 
             // println!("Positioning Child [{}] relative_pos={:?}", child.id, child_relative_pos);
-            let new_pos = (child_relative_pos.0 + pos.0, child_relative_pos.1 + pos.1);
-            if new_pos != child.pos {
-                event!(WidgetEvent::ChangePos, (child, events));
-            }
-            child.pos = new_pos;
-            child.pos.0 = child_relative_pos.0 + pos.0;
-            child.pos.1 = child_relative_pos.1 + pos.1;
+            child.rel_pos = child_relative_pos;
         }
         // because it should only be _between_ children - not after the last one
         layout_progress -= layout_main_margin;

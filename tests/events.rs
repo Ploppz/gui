@@ -5,14 +5,13 @@ use winput::Input;
 
 #[test]
 fn test_idempotent_positioning() {
-    // Test updating once is enough to complete positioning/sizing/layouting
+    // Verify that updating once is enough to complete positioning/sizing/layouting
     let mut fix = TestFixture::fixture();
     fix.update();
-    let (e, _) = fix.update();
-    assert_eq!(e.len(), 0);
-    // println!("C");
-    // let (e, _) = fix.update();
-    // assert!(e.len() == 0);
+    for i in 0..4 {
+        let (e, _) = fix.update();
+        assert_eq!(e.len(), 0);
+    }
 }
 
 #[test]
