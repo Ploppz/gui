@@ -408,6 +408,7 @@ pub enum WidgetEvent {
     /// Also issued upon first discovery of widget.
     Change,
     // TODO: perhaps something to notify that position has changed
+    Removed,
 }
 
 #[derive(Default, Debug, Copy, Clone)]

@@ -38,17 +38,22 @@ impl<D: GuiDrawer> Gui<D> {
         let (sw, sh) = self.drawer.window_size(ctx);
         self.root.size = (sw, sh);
         let (mut events, capture) = self.root.update(input, sw, sh, mouse, log.clone());
+        events.extend(std::mem::replace(&mut self.events, Vec::new()));
 
         // update parent relations
-        let old_paths = std::mem::replace(&mut self.paths, IndexMap::new());
+        let mut old_paths = std::mem::replace(&mut self.paths, IndexMap::new());
         update_paths_recurse(
             vec![],
             &mut self.root,
-            &old_paths,
+            &mut old_paths,
             &mut self.paths,
             &mut events,
         );
-        events.extend(std::mem::replace(&mut self.events, Vec::new()));
+        // entries left in `old_paths` are deleted widget ids
+        for deleted_id in old_paths.keys() {
+            events.push((deleted_id.to_string(), WidgetEvent::Removed));
+        }
+
         let ops = self.drawer.update(self, &events, log, ctx);
         for op in ops {
             match op {
@@ -147,7 +152,7 @@ fn recursive_children_mut(w: &mut Widget, f: &mut dyn FnMut(&mut Widget)) {
 fn update_paths_recurse(
     current_path: Vec<String>,
     w: &mut Widget,
-    old_paths: &IndexMap<String, Vec<String>>,
+    old_paths: &mut IndexMap<String, Vec<String>>,
     paths: &mut IndexMap<String, Vec<String>>,
     events: &mut Vec<(String, WidgetEvent)>,
 ) {
@@ -160,6 +165,7 @@ fn update_paths_recurse(
                 child.get_id()
             );
         }
+        old_paths.remove(child.get_id());
         paths.insert(child.get_id().to_string(), current_path.clone());
 
         let mut child_path = current_path.clone();

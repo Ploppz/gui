@@ -34,7 +34,7 @@ impl Interactive for DropdownButton {
                             let id = format!("{}#{}", option, Uuid::new_v4());
                             self.children
                                 .insert(id.clone(), Button::new(option.clone()).wrap(id.clone()));
-                            new_events.push((id, WidgetEvent::Change));
+                            // new_events.push((id, WidgetEvent::Change));
                         }
                     } else {
                         self.children.retain(|id, _| id.starts_with("main-button#"));
