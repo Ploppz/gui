@@ -1,7 +1,5 @@
 use gui::test_common::*;
 use gui::*;
-use slog::o;
-use winput::Input;
 
 #[test]
 fn test_idempotent_positioning() {
@@ -93,13 +91,13 @@ fn test_gui_paths() {
     // correctly.
     let mut fix = TestFixture::fixture();
 
-    for (id, expect) in fix.expected.iter() {
+    for (id, _) in fix.expected.iter() {
         fix.gui.get_widget(id).unwrap();
     }
 
     // See if `update` updates paths correctly
     fix.update();
-    for (id, expect) in fix.expected.iter() {
+    for (id, _) in fix.expected.iter() {
         fix.gui.get_widget(id).unwrap();
 
         if id.starts_with("ToggleButton ") {

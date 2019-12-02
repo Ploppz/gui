@@ -107,6 +107,19 @@ impl Widget {
             id,
         }
     }
+    pub fn layout(
+        mut self,
+        layout_direction: Axis,
+        layout_wrap: bool,
+        layout_align: Anchor,
+        layout_main_margin: f32,
+    ) -> Self {
+        self.layout_direction = layout_direction;
+        self.layout_wrap = layout_wrap;
+        self.layout_align = layout_align;
+        self.layout_main_margin = self.layout_main_margin;
+        self
+    }
     pub fn placement(mut self, place: Placement) -> Self {
         self.place = Some(place);
         self
@@ -184,6 +197,21 @@ impl Widget {
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
+        // Execute widget-specific logic
+        let events2 = self.inner.update(&events);
+        // If there are any events pertaining any children, we need to recurse children again
+        let re_recurse = events2.iter().any(|(id, _)| *id != self.id);
+        if re_recurse {
+            // TODO code duplication
+            for child in self.children_mut() {
+                let (child_events, child_capture) =
+                    child.update_bottom_up(input, sw, sh, mouse, log.clone());
+                capture |= child_capture;
+                events.extend(child_events.into_iter());
+            }
+        }
+
+        events.extend(events2);
 
         // Update positions of children (and possibly size of self)
         let pos_events = self.layout_alg(log.clone());
@@ -243,7 +271,7 @@ impl Widget {
         }
         // let id = self.id.clone();
         let mut events = Vec::new();
-        let (pos, size) = (self.pos, self.size);
+        let size = self.size;
         let layout_align = self.layout_align;
         let layout_main_margin = self.layout_main_margin;
         let padding_min = self.padding_min;
@@ -318,13 +346,25 @@ impl Widget {
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.
 pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
-    /// Create a Widget with this Interactive.
-    fn wrap(self, id: String) -> Widget
-    where
-        Self: Sized,
-    {
-        Widget::new(id, self)
+    /// Optional additional logic specific to this widget type, with events from children.
+    /// Returns events resulting from this update. For example, if children are added, it should
+    /// return Change events for those children.
+    fn update(&mut self, events: &[(String, WidgetEvent)]) -> Vec<(String, WidgetEvent)> {
+        Vec::new()
     }
+    /// Returns true if some internal state has changed in this widget (not in children)
+    fn handle_event(&mut self, event: WidgetEvent) -> bool;
+
+    /// Returns information whether this widget will stop mouse events and state
+    /// from reaching other parts of the application.
+    fn captures(&self) -> Capture;
+
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
+    fn get_child(&self, id: &str) -> Option<&Widget>;
+    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget>;
+    fn insert_child(&mut self, w: Widget) -> Option<()>;
+
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
     /// is the very center of the widget. However, this is configurable in case a finer shape is
@@ -334,19 +374,6 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         let (top, bot, right, left) = (y, y + h, x + w, x);
         mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
     }
-    /// Returns true if some internal state has changed in this widget (not in children)
-    fn handle_event(&mut self, event: WidgetEvent) -> bool;
-
-    /// Returns information whether this widget will stop mouse events and state
-    /// to reach other parts of the application.
-    fn captures(&self) -> Capture;
-
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
-    fn get_child(&self, id: &str) -> Option<&Widget>;
-    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget>;
-    fn insert_child(&mut self, w: Widget) -> Option<()>;
-
     fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
             self.children().chain(
@@ -358,6 +385,13 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     }
     fn default_size_hint(&self) -> (SizeHint, SizeHint) {
         (SizeHint::Minimize, SizeHint::Minimize)
+    }
+    /// Create a Widget with this Interactive.
+    fn wrap(self, id: String) -> Widget
+    where
+        Self: Sized,
+    {
+        Widget::new(id, self)
     }
 }
 mopafy!(Interactive);
