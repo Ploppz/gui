@@ -6,13 +6,18 @@ use uuid::Uuid;
 pub struct DropdownButton {
     children: IndexMap<String, Widget>,
     options: Vec<String>,
+    opt_ids: IndexMap<String, String>,
 }
 impl DropdownButton {
     pub fn new(options: Vec<String>) -> DropdownButton {
         let id = format!("main-button#{}", Uuid::new_v4());
         let mut children = IndexMap::new();
         children.insert(id.clone(), ToggleButton::new(String::from("---")).wrap(id));
-        DropdownButton { children, options }
+        DropdownButton {
+            children,
+            options,
+            opt_ids: IndexMap::new(),
+        }
     }
 }
 impl Interactive for DropdownButton {
@@ -21,8 +26,8 @@ impl Interactive for DropdownButton {
 
         // Always ensure that all children have the same width
 
-        // Toggle dropdown list
         for (id, event) in events {
+            // Toggle dropdown list
             if id.starts_with("main-button#") {
                 if *event == WidgetEvent::Change {
                     let toggled = self.children[id]
@@ -32,15 +37,29 @@ impl Interactive for DropdownButton {
                     if toggled {
                         for option in &self.options {
                             let id = format!("{}#{}", option, Uuid::new_v4());
+                            self.opt_ids.insert(id.clone(), option.clone());
                             self.children
                                 .insert(id.clone(), Button::new(option.clone()).wrap(id.clone()));
                             // new_events.push((id, WidgetEvent::Change));
                         }
                     } else {
                         self.children.retain(|id, _| id.starts_with("main-button#"));
+                        self.opt_ids = IndexMap::new();
                     }
                 }
             }
+
+            // TODO NEXT: more logic
+
+            /*
+            if let Some(opt) = self.opt_ids.get(id) {
+                // self.children.
+                // TODO NEXT: change text
+                self.children.get_mut("main-button")
+                self.children.retain(|id, _| id.starts_with("main-button#"));
+                self.opt_ids = IndexMap::new();
+            }
+            */
         }
         new_events
     }

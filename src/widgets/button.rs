@@ -13,6 +13,16 @@ impl Button {
         children.insert(id.clone(), TextField::new(text).wrap(id));
         Button { children }
     }
+    pub fn set_text(&mut self, text: String) {
+        let tf = self
+            .children
+            .values_mut()
+            .next()
+            .unwrap()
+            .downcast_mut::<TextField>()
+            .unwrap();
+        tf.text = text;
+    }
 }
 impl Interactive for Button {
     fn wrap(self, id: String) -> Widget {
