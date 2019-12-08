@@ -69,7 +69,7 @@ impl<D: GuiDrawer> Gui<D> {
         let id = widget.get_id().to_string();
         if let Some(parent) = self.get_widget_mut(parent_id) {
             // Insert
-            parent.insert_child(widget);
+            parent.children_mut().insert(widget.id.clone(), widget);
             // Update paths
             let mut path = self.paths[parent_id].clone();
             path.push(parent_id.to_string());
@@ -82,7 +82,7 @@ impl<D: GuiDrawer> Gui<D> {
     }
     pub fn insert_widget_in_root(&mut self, widget: Widget) {
         let id = widget.get_id().to_string();
-        self.root.insert_child(widget);
+        self.root.children_mut().insert(widget.id.clone(), widget);
         self.paths.insert(id.clone(), vec![]);
         self.events.push((id, WidgetEvent::Change));
     }
@@ -93,13 +93,13 @@ impl<D: GuiDrawer> Gui<D> {
         if let Some(path) = self.paths.get(id) {
             let mut current = &self.root;
             for id in path {
-                if let Some(child) = current.get_child(id) {
+                if let Some(child) = current.children().get(id) {
                     current = child;
                 } else {
                     panic!("Incorrect path (panicking to be sure to catch this error)");
                 }
             }
-            if let Some(child) = current.get_child(id) {
+            if let Some(child) = current.children().get(id) {
                 Some(child)
             } else {
                 panic!("Path is wrong - child not found.  child {}", id);
@@ -115,13 +115,13 @@ impl<D: GuiDrawer> Gui<D> {
         if let Some(path) = self.paths.get(id) {
             let mut current = &mut self.root;
             for id in path {
-                if let Some(child) = current.get_child_mut(id) {
+                if let Some(child) = current.children_mut().get_mut(id) {
                     current = child;
                 } else {
                     panic!("Incorrect path (panicking to be sure to catch this error)");
                 }
             }
-            if let Some(child) = current.get_child_mut(id) {
+            if let Some(child) = current.children_mut().get_mut(id) {
                 Some(child)
             } else {
                 panic!("Path is wrong - child not found.  child {}", id);
@@ -142,10 +142,10 @@ impl<D: GuiDrawer> Gui<D> {
 
 // NOTE: can't be in `Interactive` because of F
 fn recursive_children_mut(w: &mut Widget, f: &mut dyn FnMut(&mut Widget)) {
-    for child in w.children_mut() {
+    for child in w.children_mut().values_mut() {
         f(child);
     }
-    for child in w.children_mut() {
+    for child in w.children_mut().values_mut() {
         recursive_children_mut(child, f);
     }
 }
@@ -156,7 +156,7 @@ fn update_paths_recurse(
     paths: &mut IndexMap<String, Vec<String>>,
     events: &mut Vec<(String, WidgetEvent)>,
 ) {
-    for child in w.children_mut() {
+    for child in w.children_mut().values_mut() {
         if !old_paths.contains_key(child.get_id()) {
             // If not known, issue an event
             events.push((child.get_id().to_string(), WidgetEvent::Change));

@@ -22,20 +22,10 @@ impl Interactive for Container {
             keyboard: false,
         }
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a> {
-        Box::new(self.children.values_mut())
+    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
+        &self.children
     }
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
-        Box::new(self.children.values())
-    }
-    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget> {
-        self.children.get_mut(id)
-    }
-    fn get_child(&self, id: &str) -> Option<&Widget> {
-        self.children.get(id)
-    }
-    fn insert_child(&mut self, w: Widget) -> Option<()> {
-        self.children.insert(w.get_id().to_string(), w);
-        Some(())
+    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
+        &mut self.children
     }
 }

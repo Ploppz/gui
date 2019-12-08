@@ -1,12 +1,16 @@
 use crate::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TextField {
     pub text: String,
+    children: IndexMap<String, Widget>,
 }
 impl TextField {
     pub fn new(text: String) -> TextField {
-        TextField { text }
+        TextField {
+            text,
+            children: IndexMap::new(),
+        }
     }
 }
 impl Interactive for TextField {
@@ -19,20 +23,11 @@ impl Interactive for TextField {
             keyboard: false,
         }
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a> {
-        Box::new(std::iter::empty())
+    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
+        &self.children
     }
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
-        Box::new(std::iter::empty())
-    }
-    fn get_child(&self, _id: &str) -> Option<&Widget> {
-        None
-    }
-    fn get_child_mut(&mut self, _id: &str) -> Option<&mut Widget> {
-        None
-    }
-    fn insert_child(&mut self, _w: Widget) -> Option<()> {
-        None
+    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
+        &mut self.children
     }
 
     fn default_size_hint(&self) -> (SizeHint, SizeHint) {

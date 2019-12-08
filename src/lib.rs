@@ -8,8 +8,7 @@
 extern crate mopa;
 #[macro_use]
 extern crate derive_deref;
-#[macro_use]
-extern crate slog;
+use indexmap::IndexMap;
 use mopa::Any;
 use slog::Logger;
 use winput::Input;
@@ -112,7 +111,7 @@ impl Widget {
         layout_direction: Axis,
         layout_wrap: bool,
         layout_align: Anchor,
-        layout_main_margin: f32,
+        _layout_main_margin: f32,
     ) -> Self {
         self.layout_direction = layout_direction;
         self.layout_wrap = layout_wrap;
@@ -191,7 +190,7 @@ impl Widget {
         let mut capture = Capture::default();
 
         // Update children
-        for child in self.children_mut() {
+        for child in self.children_mut().values_mut() {
             let (child_events, child_capture) =
                 child.update_bottom_up(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
@@ -203,7 +202,7 @@ impl Widget {
         let re_recurse = events2.iter().any(|(id, _)| *id != self.id);
         if re_recurse {
             // TODO code duplication
-            for child in self.children_mut() {
+            for child in self.children_mut().values_mut() {
                 let (child_events, child_capture) =
                     child.update_bottom_up(input, sw, sh, mouse, log.clone());
                 capture |= child_capture;
@@ -252,7 +251,7 @@ impl Widget {
     /// Calculates absolute positions
     fn update_top_down(&mut self, events: &mut Vec<(String, WidgetEvent)>) {
         let pos = self.pos;
-        for child in self.children_mut() {
+        for child in self.children_mut().values_mut() {
             let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
             if new_pos != child.pos {
                 event!(WidgetEvent::ChangePos, (child, events));
@@ -282,7 +281,7 @@ impl Widget {
         // max width/height along cross axis
         let mut cross_size = 0.0;
 
-        for child in self.children_mut() {
+        for child in self.children_mut().values_mut() {
             let mut child_relative_pos = (0.0, 0.0);
             if let Some(place) = child.place {
                 // Child does not participate in layout
@@ -349,7 +348,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// Optional additional logic specific to this widget type, with events from children.
     /// Returns events resulting from this update. For example, if children are added, it should
     /// return Change events for those children.
-    fn update(&mut self, events: &[(String, WidgetEvent)]) -> Vec<(String, WidgetEvent)> {
+    fn update(&mut self, _events: &[(String, WidgetEvent)]) -> Vec<(String, WidgetEvent)> {
         Vec::new()
     }
     /// Returns true if some internal state has changed in this widget (not in children)
@@ -359,11 +358,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// from reaching other parts of the application.
     fn captures(&self) -> Capture;
 
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a>;
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a>;
-    fn get_child(&self, id: &str) -> Option<&Widget>;
-    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget>;
-    fn insert_child(&mut self, w: Widget) -> Option<()>;
+    fn children<'a>(&'a self) -> &IndexMap<String, Widget>;
+    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget>;
 
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
@@ -376,8 +372,9 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     }
     fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
-            self.children().chain(
+            self.children().values().chain(
                 self.children()
+                    .values()
                     .map(|child| child.recursive_children_iter())
                     .flatten(),
             ),

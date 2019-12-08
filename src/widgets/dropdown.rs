@@ -3,26 +3,37 @@ use indexmap::IndexMap;
 use uuid::Uuid;
 
 #[derive(Debug)]
+struct DropdownOption {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug)]
 pub struct DropdownButton {
     children: IndexMap<String, Widget>,
-    options: Vec<String>,
-    opt_ids: IndexMap<String, String>,
+    options: Vec<DropdownOption>,
+    /// map from ID to option index
+    opt_map: IndexMap<String, usize>,
 }
 impl DropdownButton {
-    pub fn new(options: Vec<String>) -> DropdownButton {
+    pub fn new() -> DropdownButton {
         let id = format!("main-button#{}", Uuid::new_v4());
         let mut children = IndexMap::new();
         children.insert(id.clone(), ToggleButton::new(String::from("---")).wrap(id));
         DropdownButton {
             children,
-            options,
-            opt_ids: IndexMap::new(),
+            options: Vec::new(),
+            opt_map: IndexMap::new(),
         }
+    }
+    pub fn option(mut self, name: String, value: String) -> Self {
+        self.options.push(DropdownOption { name, value });
+        self
     }
 }
 impl Interactive for DropdownButton {
     fn update(&mut self, events: &[(String, WidgetEvent)]) -> Vec<(String, WidgetEvent)> {
-        let mut new_events = Vec::new();
+        let new_events = Vec::new();
 
         // Always ensure that all children have the same width
 
@@ -36,15 +47,15 @@ impl Interactive for DropdownButton {
                         .state;
                     if toggled {
                         for option in &self.options {
-                            let id = format!("{}#{}", option, Uuid::new_v4());
-                            self.opt_ids.insert(id.clone(), option.clone());
-                            self.children
-                                .insert(id.clone(), Button::new(option.clone()).wrap(id.clone()));
+                            let id = Uuid::new_v4().to_string();
+                            self.children.insert(
+                                id.clone(),
+                                Button::new(option.name.clone()).wrap(id.clone()),
+                            );
                             // new_events.push((id, WidgetEvent::Change));
                         }
                     } else {
                         self.children.retain(|id, _| id.starts_with("main-button#"));
-                        self.opt_ids = IndexMap::new();
                     }
                 }
             }
@@ -77,20 +88,10 @@ impl Interactive for DropdownButton {
             keyboard: false,
         }
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Widget> + 'a> {
-        Box::new(self.children.values_mut())
+    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
+        &self.children
     }
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Widget> + 'a> {
-        Box::new(self.children.values())
-    }
-    fn get_child(&self, id: &str) -> Option<&Widget> {
-        self.children.get(id)
-    }
-    fn get_child_mut(&mut self, id: &str) -> Option<&mut Widget> {
-        self.children.get_mut(id)
-    }
-    fn insert_child(&mut self, w: Widget) -> Option<()> {
-        self.children.insert(w.get_id().to_string(), w);
-        Some(())
+    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
+        &mut self.children
     }
 }

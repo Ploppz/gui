@@ -39,6 +39,7 @@ impl TestFixture {
             gui.get_widget_mut(&id)
                 .unwrap()
                 .children_mut()
+                .values_mut()
                 .next()
                 .unwrap()
                 .size = (50.0, 50.0);
@@ -172,6 +173,7 @@ pub fn single_toggle_button() -> Gui<NoDrawer> {
     gui.get_widget_mut("B1")
         .unwrap()
         .children_mut()
+        .values_mut()
         .next()
         .unwrap()
         .size = (50.0, 50.0);
@@ -215,7 +217,7 @@ use ptree::{output::print_tree, TreeBuilder};
 pub fn print_widget_tree(w: &Widget) {
     let mut tree = TreeBuilder::new(w.get_id().to_string());
     fn recurse(tree: &mut TreeBuilder, w: &Widget) {
-        for child in w.children() {
+        for child in w.children().values() {
             tree.begin_child(child.get_id().to_string());
             recurse(tree, &child);
             tree.end_child();
