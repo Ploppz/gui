@@ -23,10 +23,14 @@ pub use widgets::*;
 
 pub mod test_common;
 
+pub type Id = usize;
+
 #[derive(Deref, DerefMut, Debug)]
 pub struct Widget {
     #[deref_target]
     pub inner: Box<dyn Interactive>,
+    /// Children of this node in the widget tree
+    pub children: IndexMap<Id, Widget>,
     /// Current absolute position as calculated by layout algorithm
     pub pos: (f32, f32),
     /// Current relative (to parent) position as calculated by layout algorithm
@@ -68,7 +72,7 @@ pub struct Widget {
     /// likely a part of.
     /// NOTE: It's important to always ensure that `self.id` corresponds to the ID as registered in
     /// the gui system.
-    id: String,
+    id: Id,
 }
 macro_rules! event {
     ($event:expr, ($widget:expr, $events:expr)) => {{
@@ -81,10 +85,11 @@ macro_rules! event {
 }
 
 impl Widget {
-    pub fn new<W: Interactive>(id: String, widget: W) -> Widget {
+    pub fn new<W: Interactive>(id: Id, widget: W) -> Widget {
         let (size_hint_x, size_hint_y) = widget.default_size_hint();
         Widget {
             inner: Box::new(widget),
+            children: IndexMap::new(),
             pos: (0.0, 0.0),
             rel_pos: (0.0, 0.0),
             size: (10.0, 10.0), // TODO Interactive::default_size()?
@@ -145,8 +150,8 @@ impl Widget {
         self.padding_max = (right, bot);
         self
     }
-    pub fn get_id(&self) -> &str {
-        &self.id
+    pub fn get_id(&self) -> Id {
+        self.id
     }
     pub fn hover(&self) -> bool {
         self.inside
@@ -170,7 +175,7 @@ impl Widget {
         sh: f32,
         mouse: (f32, f32),
         log: Logger,
-    ) -> (Vec<(String, WidgetEvent)>, Capture) {
+    ) -> (Vec<(Id, WidgetEvent)>, Capture) {
         let (mut e, c) = self.update_bottom_up(input, sw, sh, mouse, log);
         self.update_top_down(&mut e);
         (e, c)
@@ -185,24 +190,24 @@ impl Widget {
         sh: f32,
         mouse: (f32, f32),
         log: Logger,
-    ) -> (Vec<(String, WidgetEvent)>, Capture) {
+    ) -> (Vec<(Id, WidgetEvent)>, Capture) {
         let mut events = Vec::new();
         let mut capture = Capture::default();
 
         // Update children
-        for child in self.children_mut().values_mut() {
+        for child in self.children.values_mut() {
             let (child_events, child_capture) =
                 child.update_bottom_up(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
             events.extend(child_events.into_iter());
         }
         // Execute widget-specific logic
-        let events2 = self.inner.update(&events);
+        let events2 = self.inner.update(&events, &mut self.children);
         // If there are any events pertaining any children, we need to recurse children again
         let re_recurse = events2.iter().any(|(id, _)| *id != self.id);
         if re_recurse {
             // TODO code duplication
-            for child in self.children_mut().values_mut() {
+            for child in self.children.values_mut() {
                 let (child_events, child_capture) =
                     child.update_bottom_up(input, sw, sh, mouse, log.clone());
                 capture |= child_capture;
@@ -249,9 +254,9 @@ impl Widget {
         (events, capture)
     }
     /// Calculates absolute positions
-    fn update_top_down(&mut self, events: &mut Vec<(String, WidgetEvent)>) {
+    fn update_top_down(&mut self, events: &mut Vec<(Id, WidgetEvent)>) {
         let pos = self.pos;
-        for child in self.children_mut().values_mut() {
+        for child in self.children.values_mut() {
             let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
             if new_pos != child.pos {
                 event!(WidgetEvent::ChangePos, (child, events));
@@ -263,7 +268,7 @@ impl Widget {
 
     /// Not recursive - only updates the position of children.
     /// (and updates size of `self` if applicable)
-    fn layout_alg(&mut self, _log: Logger) -> Vec<(String, WidgetEvent)> {
+    fn layout_alg(&mut self, _log: Logger) -> Vec<(Id, WidgetEvent)> {
         // println!("Positioning Parent [{}]", self.id);
         if self.layout_wrap {
             unimplemented!()
@@ -281,7 +286,7 @@ impl Widget {
         // max width/height along cross axis
         let mut cross_size = 0.0;
 
-        for child in self.children_mut().values_mut() {
+        for child in self.children.values_mut() {
             let mut child_relative_pos = (0.0, 0.0);
             if let Some(place) = child.place {
                 // Child does not participate in layout
@@ -345,10 +350,20 @@ impl Widget {
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.
 pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
+    /// Exists to make it possible for a widget to create children - Gui and Widget
+    /// are required for that. Called once when `self` is registered in Gui. Gui then
+    /// assigns id to each child widget returned.
+    fn init(&mut self) -> Vec<Widget> {
+        Vec::new()
+    }
     /// Optional additional logic specific to this widget type, with events from children.
     /// Returns events resulting from this update. For example, if children are added, it should
     /// return Change events for those children.
-    fn update(&mut self, _events: &[(String, WidgetEvent)]) -> Vec<(String, WidgetEvent)> {
+    fn update(
+        &mut self,
+        _events: &[(Id, WidgetEvent)],
+        children: &mut IndexMap<Id, Widget>,
+    ) -> Vec<(Id, WidgetEvent)> {
         Vec::new()
     }
     /// Returns true if some internal state has changed in this widget (not in children)
@@ -357,9 +372,6 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// Returns information whether this widget will stop mouse events and state
     /// from reaching other parts of the application.
     fn captures(&self) -> Capture;
-
-    fn children<'a>(&'a self) -> &IndexMap<String, Widget>;
-    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget>;
 
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
@@ -370,21 +382,11 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         let (top, bot, right, left) = (y, y + h, x + w, x);
         mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
     }
-    fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
-        Box::new(
-            self.children().values().chain(
-                self.children()
-                    .values()
-                    .map(|child| child.recursive_children_iter())
-                    .flatten(),
-            ),
-        )
-    }
     fn default_size_hint(&self) -> (SizeHint, SizeHint) {
         (SizeHint::Minimize, SizeHint::Minimize)
     }
     /// Create a Widget with this Interactive.
-    fn wrap(self, id: String) -> Widget
+    fn wrap(self, id: Id) -> Widget
     where
         Self: Sized,
     {

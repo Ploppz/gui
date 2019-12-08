@@ -12,7 +12,7 @@ pub struct Expected {
 pub struct TestFixture {
     pub gui: Gui<NoDrawer>,
     pub input: Input,
-    pub expected: HashMap<String, Expected>,
+    pub expected: HashMap<Id, Expected>,
 }
 impl TestFixture {
     const PADDING: f32 = 5.0;
@@ -27,18 +27,18 @@ impl TestFixture {
         let mut expected_x = Self::PADDING;
         for i in 0..10 {
             let id = if i < 5 {
-                let id = format!("Button {}", i);
-                gui.insert_widget_in_root(Button::new(id.clone()).wrap(id.clone()));
+                let id: usize = unimplemented!();
+                gui.insert_widget_in_root(Button::new(String::new()).wrap(id));
                 id
             } else {
-                let id = format!("ToggleButton {}", i - 5);
-                gui.insert_widget_in_root(ToggleButton::new(id.clone()).wrap(id.clone()));
+                let id = unimplemented!();
+                gui.insert_widget_in_root(ToggleButton::new(String::new()).wrap(id));
                 id
             };
             // Set text field size (simulates rendering)
-            gui.get_widget_mut(&id)
+            gui.get_widget_mut(id)
                 .unwrap()
-                .children_mut()
+                .children
                 .values_mut()
                 .next()
                 .unwrap()
@@ -67,12 +67,12 @@ impl TestFixture {
         }
     }
     /// Calls update on gui
-    pub fn update(&mut self) -> (Vec<(String, WidgetEvent)>, Capture) {
+    pub fn update(&mut self) -> (Vec<(Id, WidgetEvent)>, Capture) {
         let log = Logger::root(Discard, o!());
         let (events, capture) = self.gui.update(&self.input, log, &mut ());
         println!("[TestFixture][update] events = [");
         for event in events.iter() {
-            let w = self.gui.get_widget(&event.0).unwrap();
+            let w = self.gui.get_widget(event.0).unwrap();
             print!("\t{:?}", event.1);
             match event.1 {
                 WidgetEvent::ChangePos => print!("\tpos={:?}", w.pos),
@@ -88,13 +88,13 @@ impl TestFixture {
     /// releasing
     pub fn click_widget(
         &mut self,
-        id: &str,
+        id: Id,
     ) -> (
-        (Vec<(String, WidgetEvent)>, Capture),
-        (Vec<(String, WidgetEvent)>, Capture),
+        (Vec<(Id, WidgetEvent)>, Capture),
+        (Vec<(Id, WidgetEvent)>, Capture),
     ) {
-        let pos = self.expected[id].pos;
-        let size = self.expected[id].size;
+        let pos = self.expected[&id].pos;
+        let size = self.expected[&id].size;
         let mouse_pos = (pos.0 + size.0 / 2.0, pos.1 + size.1 / 2.0);
 
         self.input.register_mouse_position(mouse_pos.0, mouse_pos.1);
@@ -122,14 +122,14 @@ fn test_fixture_expectation() {
     fix.update();
     fix.update();
     for (id, expected) in fix.expected.iter() {
-        let w = fix.gui.get_widget(id).unwrap();
+        let w = fix.gui.get_widget(*id).unwrap();
         println!(
             "[{}]: pos: {:?} vs. {:?}, size: {:?} vs {:?}",
             id, w.pos, expected.pos, w.size, expected.size
         );
     }
     for (id, expected) in fix.expected.iter() {
-        let real = fix.gui.get_widget(id).unwrap();
+        let real = fix.gui.get_widget(*id).unwrap();
         assert_eq!(expected.pos, real.pos);
         assert_eq!(expected.size, real.size);
     }
@@ -158,26 +158,6 @@ pub fn mouse_pressed() -> MouseInput {
         state: ElementState::Pressed,
         modifiers: ModifiersState::default(),
     }
-}
-pub fn single_button() -> Gui<NoDrawer> {
-    let mut gui = Gui::new(NoDrawer);
-    gui.insert_widget_in_root(Button::new("B1".to_string()).wrap("B1".to_string()));
-    // NOTE: maybe a bad solution right now but size is (0.0, 0.0) by default because it depends on rendering
-    gui.get_widget_mut("B1").unwrap().size = (50.0, 50.0);
-    gui
-}
-pub fn single_toggle_button() -> Gui<NoDrawer> {
-    let mut gui = Gui::new(NoDrawer);
-    gui.insert_widget_in_root(ToggleButton::new("B1".to_string()).wrap("B1".to_string()));
-    // Set text field size (simulates rendering)
-    gui.get_widget_mut("B1")
-        .unwrap()
-        .children_mut()
-        .values_mut()
-        .next()
-        .unwrap()
-        .size = (50.0, 50.0);
-    gui
 }
 
 #[macro_export]
@@ -217,7 +197,7 @@ use ptree::{output::print_tree, TreeBuilder};
 pub fn print_widget_tree(w: &Widget) {
     let mut tree = TreeBuilder::new(w.get_id().to_string());
     fn recurse(tree: &mut TreeBuilder, w: &Widget) {
-        for child in w.children().values() {
+        for child in w.children.values() {
             tree.begin_child(child.get_id().to_string());
             recurse(tree, &child);
             tree.end_child();

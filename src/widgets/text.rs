@@ -3,14 +3,10 @@ use crate::*;
 #[derive(Debug)]
 pub struct TextField {
     pub text: String,
-    children: IndexMap<String, Widget>,
 }
 impl TextField {
     pub fn new(text: String) -> TextField {
-        TextField {
-            text,
-            children: IndexMap::new(),
-        }
+        TextField { text }
     }
 }
 impl Interactive for TextField {
@@ -22,12 +18,6 @@ impl Interactive for TextField {
             mouse: false,
             keyboard: false,
         }
-    }
-    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
-        &self.children
-    }
-    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
-        &mut self.children
     }
 
     fn default_size_hint(&self) -> (SizeHint, SizeHint) {

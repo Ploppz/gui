@@ -18,7 +18,7 @@ pub trait GuiDrawer: Sized {
     fn update(
         &self,
         gui: &Gui<Self>,
-        events: &[(String, WidgetEvent)],
+        events: &[(Id, WidgetEvent)],
         log: Logger,
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
@@ -37,7 +37,7 @@ impl GuiDrawer for NoDrawer {
     fn update(
         &self,
         _gui: &Gui<Self>,
-        _events: &[(String, WidgetEvent)],
+        _events: &[(Id, WidgetEvent)],
         _log: Logger,
         _ctx: &mut Self::Context,
     ) -> Vec<WidgetOp> {
@@ -46,5 +46,5 @@ impl GuiDrawer for NoDrawer {
 }
 
 pub enum WidgetOp {
-    Resize { id: String, size: (f32, f32) },
+    Resize { id: Id, size: (f32, f32) },
 }

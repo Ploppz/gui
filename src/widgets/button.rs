@@ -1,31 +1,27 @@
 use crate::*;
-use indexmap::IndexMap;
-use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Button {
-    children: IndexMap<String, Widget>,
+    text: String,
+    text_changed: bool,
 }
 impl Button {
     pub fn new(text: String) -> Button {
-        let id = Uuid::new_v4().to_string();
-        let mut children = IndexMap::new();
-        children.insert(id.clone(), TextField::new(text).wrap(id));
-        Button { children }
+        Button {
+            text,
+            text_changed: false,
+        }
     }
     pub fn set_text(&mut self, text: String) {
-        let tf = self
-            .children
-            .values_mut()
-            .next()
-            .unwrap()
-            .downcast_mut::<TextField>()
-            .unwrap();
-        tf.text = text;
+        self.text = text;
+        self.text_changed = true;
     }
 }
 impl Interactive for Button {
-    fn wrap(self, id: String) -> Widget {
+    fn init(&mut self) -> Vec<Widget> {
+        vec![TextField::new(self.text.clone()).wrap(0)]
+    }
+    fn wrap(self, id: Id) -> Widget {
         Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
     }
 
@@ -38,32 +34,25 @@ impl Interactive for Button {
             keyboard: false,
         }
     }
-    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
-        &self.children
-    }
-    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
-        &mut self.children
-    }
 }
 
 #[derive(Debug)]
 pub struct ToggleButton {
     pub state: bool,
-    children: IndexMap<String, Widget>,
+    text: String,
+    text_changed: bool,
 }
 impl ToggleButton {
     pub fn new(text: String) -> ToggleButton {
-        let id = Uuid::new_v4().to_string();
-        let mut children = IndexMap::new();
-        children.insert(id.clone(), TextField::new(text).wrap(id));
         ToggleButton {
-            children,
+            text,
+            text_changed: false,
             state: false,
         }
     }
 }
 impl Interactive for ToggleButton {
-    fn wrap(self, id: String) -> Widget {
+    fn wrap(self, id: usize) -> Widget {
         Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
     }
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
@@ -80,12 +69,6 @@ impl Interactive for ToggleButton {
             keyboard: false,
         }
     }
-    fn children<'a>(&'a self) -> &IndexMap<String, Widget> {
-        &self.children
-    }
-    fn children_mut<'a>(&'a mut self) -> &mut IndexMap<String, Widget> {
-        &mut self.children
-    }
 }
 
 #[cfg(test)]
@@ -97,11 +80,11 @@ mod test {
         let mut fix = TestFixture::fixture();
         fix.update();
 
-        let ((_, _), (events, _)) = fix.click_widget("ToggleButton 0");
+        let ((_, _), (events, _)) = fix.click_widget(unimplemented!());
 
         assert_events!(events, vec![WidgetEvent::Release]);
 
-        let btn = fix.gui.get_widget("ToggleButton 0").unwrap();
+        let btn = fix.gui.get_widget(unimplemented!()).unwrap();
         let btn = btn.downcast_ref::<ToggleButton>().unwrap();
         assert_eq!(btn.state, true);
     }
