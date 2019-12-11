@@ -72,10 +72,16 @@ impl Interactive for DropdownButton {
         }
         new_events
     }
-    fn wrap(self, id: Id) -> Widget {
-        Widget::new(id, self)
-            .padding(4.0, 4.0, 6.0, 6.0)
-            .layout(Axis::Y, false, Anchor::Min, 2.0)
+    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
+        (
+            Vec::new(),
+            WidgetConfig::default().padding(4.0, 4.0, 6.0, 6.0).layout(
+                Axis::Y,
+                false,
+                Anchor::Min,
+                2.0,
+            ),
+        )
     }
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false

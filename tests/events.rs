@@ -22,11 +22,11 @@ fn test_button_click_capture_and_events() {
 
     let relevant_events = press_events
         .into_iter()
-        .filter(|event| event.0 == "ToggleButton 0")
+        .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0"))
         .chain(
             release_events
                 .into_iter()
-                .filter(|event| event.0 == "ToggleButton 0"),
+                .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0")),
         )
         .collect::<Vec<_>>();
     assert!(press_capture.mouse);
@@ -50,14 +50,14 @@ fn test_mark_change() {
 
     // Manually change the toggle button
 
-    let button = fix.gui.get_widget_mut("ToggleButton 0").unwrap();
+    let button = fix.gui.get_mut("ToggleButton 0");
     button.mark_change();
     button.downcast_mut::<ToggleButton>().unwrap().state = true;
 
     let (events, capture) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| event.0 == "ToggleButton 0")
+        .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0"))
         .collect::<Vec<_>>();
     println!("{:?}", relevant_events);
     assert_eq!(relevant_events.len(), 1);
@@ -72,7 +72,7 @@ fn test_gui_change_pos() {
     let (events, _) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| event.0 == "Button 1")
+        .filter(|event| fix.gui.id_eq(event.0, "Button 1"))
         .collect::<Vec<_>>();
     assert_events!(
         relevant_events,
@@ -92,26 +92,18 @@ fn test_gui_paths() {
     let mut fix = TestFixture::fixture();
 
     for (id, _) in fix.expected.iter() {
-        fix.gui.get_widget(id).unwrap();
+        fix.gui.get(id);
     }
 
     // See if `update` updates paths correctly
     fix.update();
     for (id, _) in fix.expected.iter() {
-        fix.gui.get_widget(id).unwrap();
+        fix.gui.get(id);
 
         if id.starts_with("ToggleButton ") {
-            fix.gui
-                .get_widget_mut(id)
-                .unwrap()
-                .downcast_mut::<ToggleButton>()
-                .unwrap();
+            fix.gui.get_mut(id).downcast_mut::<ToggleButton>().unwrap();
         } else if id.starts_with("Button ") {
-            fix.gui
-                .get_widget_mut(id)
-                .unwrap()
-                .downcast_mut::<Button>()
-                .unwrap();
+            fix.gui.get_mut(id).downcast_mut::<Button>().unwrap();
         }
     }
 }

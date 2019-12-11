@@ -67,15 +67,20 @@ pub enum Anchor {
     Max,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SizeHint {
     /// Size is given externally - by application or rendering.
     /// In this case, size is not touched by `gui`.
     /// For example, a text field's size is determined by the render engine.
-    External,
+    External(f32),
     /// Size is determined by the size of children.
     /// Size will be set to exactly contain children (plus eventual padding).
     Minimize,
     // Percentage(f32, f32),
     // TODO ^ rather try "flex factors" like in Flutter
+}
+impl Default for SizeHint {
+    fn default() -> Self {
+        SizeHint::External(10.0)
+    }
 }

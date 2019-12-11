@@ -18,11 +18,13 @@ impl Button {
     }
 }
 impl Interactive for Button {
-    fn init(&mut self) -> Vec<Widget> {
-        vec![TextField::new(self.text.clone()).wrap(0)]
-    }
-    fn wrap(self, id: Id) -> Widget {
-        Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
+    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
+        (
+            vec![Box::new(TextField::new(self.text.clone()))],
+            WidgetConfig::default()
+                .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+                .padding(4.0, 4.0, 6.0, 6.0),
+        )
     }
 
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
@@ -52,8 +54,13 @@ impl ToggleButton {
     }
 }
 impl Interactive for ToggleButton {
-    fn wrap(self, id: usize) -> Widget {
-        Widget::new(id, self).padding(4.0, 4.0, 6.0, 6.0)
+    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
+        (
+            vec![Box::new(TextField::new(self.text.clone()))],
+            WidgetConfig::default()
+                .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+                .padding(4.0, 4.0, 6.0, 6.0),
+        )
     }
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {
@@ -80,11 +87,11 @@ mod test {
         let mut fix = TestFixture::fixture();
         fix.update();
 
-        let ((_, _), (events, _)) = fix.click_widget(unimplemented!());
+        let ((_, _), (events, _)) = fix.click_widget("ToggleButton 0");
 
         assert_events!(events, vec![WidgetEvent::Release]);
 
-        let btn = fix.gui.get_widget(unimplemented!()).unwrap();
+        let btn = fix.gui.get("ToggleButton 0");
         let btn = btn.downcast_ref::<ToggleButton>().unwrap();
         assert_eq!(btn.state, true);
     }

@@ -25,19 +25,8 @@ pub mod test_common;
 
 pub type Id = usize;
 
-#[derive(Deref, DerefMut, Debug)]
-pub struct Widget {
-    #[deref_target]
-    pub inner: Box<dyn Interactive>,
-    /// Children of this node in the widget tree
-    pub children: IndexMap<Id, Widget>,
-    /// Current absolute position as calculated by layout algorithm
-    pub pos: (f32, f32),
-    /// Current relative (to parent) position as calculated by layout algorithm
-    pub rel_pos: (f32, f32),
-    /// Current size as calculated by layout algorithm
-    pub size: (f32, f32),
-
+#[derive(Debug, Clone, Copy)]
+pub struct WidgetConfig {
     /// Optional positioning; makes this widget not participate in its siblings' layout
     pub place: Option<Placement>,
     /// The axis along which to stack children
@@ -59,6 +48,85 @@ pub struct Widget {
     // size hints
     pub size_hint_x: SizeHint,
     pub size_hint_y: SizeHint,
+}
+impl Default for WidgetConfig {
+    fn default() -> Self {
+        WidgetConfig {
+            place: None,
+            layout_direction: Axis::X,
+            layout_wrap: false,
+            layout_align: Anchor::Min,
+            layout_main_margin: 0.0,
+
+            padding_min: (0.0, 0.0),
+            padding_max: (0.0, 0.0),
+
+            size_hint_x: SizeHint::default(),
+            size_hint_y: SizeHint::default(),
+        }
+    }
+}
+impl WidgetConfig {
+    pub fn layout(
+        mut self,
+        layout_direction: Axis,
+        layout_wrap: bool,
+        layout_align: Anchor,
+        _layout_main_margin: f32,
+    ) -> Self {
+        self.layout_direction = layout_direction;
+        self.layout_wrap = layout_wrap;
+        self.layout_align = layout_align;
+        self.layout_main_margin = self.layout_main_margin;
+        self
+    }
+    pub fn placement(mut self, place: Placement) -> Self {
+        self.place = Some(place);
+        self
+    }
+    pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
+        self.size_hint_x = x;
+        self.size_hint_y = y;
+        self
+    }
+    /// Fixed width
+    pub fn width(mut self, w: f32) -> Self {
+        self.size_hint_x = SizeHint::External(w);
+        self
+    }
+    /// Fixed height
+    pub fn height(mut self, h: f32) -> Self {
+        self.size_hint_y = SizeHint::External(h);
+        self
+    }
+    pub fn set_size(&mut self, w: f32, h: f32) {
+        self.size_hint_x = SizeHint::External(w);
+        self.size_hint_y = SizeHint::External(h);
+    }
+    pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
+        self.padding_min = (left, top);
+        self.padding_max = (right, bot);
+        self
+    }
+}
+
+#[derive(Deref, DerefMut, Debug)]
+pub struct Widget {
+    #[deref_target]
+    pub inner: Box<dyn Interactive>,
+    /// Children of this node in the widget tree.
+    children: IndexMap<Id, Widget>,
+    /// Current absolute position as calculated by layout algorithm.
+    /// (should be read-only outside `gui`)
+    pub pos: (f32, f32),
+    /// Current relative (to parent) position as calculated by layout algorithm
+    /// (should be read-only outside `gui`)
+    pub rel_pos: (f32, f32),
+    /// Current size as calculated by layout algorithm
+    /// (should be read-only outside `gui`)
+    pub size: (f32, f32),
+
+    pub config: WidgetConfig,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -85,70 +153,23 @@ macro_rules! event {
 }
 
 impl Widget {
-    pub fn new<W: Interactive>(id: Id, widget: W) -> Widget {
-        let (size_hint_x, size_hint_y) = widget.default_size_hint();
+    pub fn new(id: Id, widget: Box<dyn Interactive>, config: WidgetConfig) -> Widget {
         Widget {
-            inner: Box::new(widget),
+            inner: widget,
             children: IndexMap::new(),
             pos: (0.0, 0.0),
             rel_pos: (0.0, 0.0),
-            size: (10.0, 10.0), // TODO Interactive::default_size()?
+            size: (10.0, 10.0),
+            config,
 
-            place: None,
-            layout_direction: Axis::X,
-            layout_wrap: false,
-            layout_align: Anchor::Min,
-            layout_main_margin: 0.0,
-
-            padding_min: (0.0, 0.0),
-            padding_max: (0.0, 0.0),
-
-            size_hint_x,
-            size_hint_y,
             inside: false,
             pressed: false,
             changed: false,
             id,
         }
     }
-    pub fn layout(
-        mut self,
-        layout_direction: Axis,
-        layout_wrap: bool,
-        layout_align: Anchor,
-        _layout_main_margin: f32,
-    ) -> Self {
-        self.layout_direction = layout_direction;
-        self.layout_wrap = layout_wrap;
-        self.layout_align = layout_align;
-        self.layout_main_margin = self.layout_main_margin;
-        self
-    }
-    pub fn placement(mut self, place: Placement) -> Self {
-        self.place = Some(place);
-        self
-    }
-    pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
-        self.size_hint_x = x;
-        self.size_hint_y = y;
-        self
-    }
-    /// Fixed width
-    pub fn width(mut self, w: f32) -> Self {
-        self.size_hint_x = SizeHint::External;
-        self.size.0 = w;
-        self
-    }
-    /// Fixed height
-    pub fn height(mut self, h: f32) -> Self {
-        self.size_hint_y = SizeHint::External;
-        self.size.1 = h;
-        self
-    }
-    pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
-        self.padding_min = (left, top);
-        self.padding_max = (right, bot);
-        self
+    pub fn children(&self) -> &IndexMap<Id, Widget> {
+        &self.children
     }
     pub fn get_id(&self) -> Id {
         self.id
@@ -270,25 +291,28 @@ impl Widget {
     /// (and updates size of `self` if applicable)
     fn layout_alg(&mut self, _log: Logger) -> Vec<(Id, WidgetEvent)> {
         // println!("Positioning Parent [{}]", self.id);
-        if self.layout_wrap {
+        if self.config.layout_wrap {
             unimplemented!()
         }
         // let id = self.id.clone();
         let mut events = Vec::new();
         let size = self.size;
-        let layout_align = self.layout_align;
-        let layout_main_margin = self.layout_main_margin;
-        let padding_min = self.padding_min;
+        let layout_align = self.config.layout_align;
+        let layout_main_margin = self.config.layout_main_margin;
+        let padding_min = self.config.padding_min;
 
-        let (main_axis, cross_axis) = (self.layout_direction, self.layout_direction.other());
+        let (main_axis, cross_axis) = (
+            self.config.layout_direction,
+            self.config.layout_direction.other(),
+        );
 
-        let mut layout_progress = self.padding_min[main_axis];
+        let mut layout_progress = self.config.padding_min[main_axis];
         // max width/height along cross axis
         let mut cross_size = 0.0;
 
         for child in self.children.values_mut() {
             let mut child_relative_pos = (0.0, 0.0);
-            if let Some(place) = child.place {
+            if let Some(place) = child.config.place {
                 // Child does not participate in layout
                 child_relative_pos = (
                     match place.x {
@@ -325,16 +349,22 @@ impl Widget {
         }
         // because it should only be _between_ children - not after the last one
         layout_progress -= layout_main_margin;
-        layout_progress += self.padding_max[main_axis];
+        layout_progress += self.config.padding_max[main_axis];
 
         let mut new_size = self.size;
-        let size_hint = (self.size_hint_x, self.size_hint_y);
-        if size_hint[main_axis] == SizeHint::Minimize {
-            new_size[main_axis] = layout_progress;
+        println!("[positioning {}] pre size {:?}", self.id, new_size);
+        let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
+        match size_hint[main_axis] {
+            SizeHint::Minimize => new_size[main_axis] = layout_progress,
+            SizeHint::External(s) => new_size[main_axis] = s,
         }
-        if size_hint[cross_axis] == SizeHint::Minimize {
-            new_size[cross_axis] =
-                cross_size + self.padding_min[cross_axis] + self.padding_max[cross_axis];
+        match size_hint[cross_axis] {
+            SizeHint::Minimize => {
+                new_size[cross_axis] = cross_size
+                    + self.config.padding_min[cross_axis]
+                    + self.config.padding_max[cross_axis]
+            }
+            SizeHint::External(s) => new_size[cross_axis] = s,
         }
         if new_size != self.size {
             self.size = new_size;
@@ -352,9 +382,10 @@ impl Widget {
 pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// Exists to make it possible for a widget to create children - Gui and Widget
     /// are required for that. Called once when `self` is registered in Gui. Gui then
-    /// assigns id to each child widget returned.
-    fn init(&mut self) -> Vec<Widget> {
-        Vec::new()
+    /// assigns id to each child widget returned, and adds it to the enclosing Widget.
+
+    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
+        (Vec::new(), WidgetConfig::default())
     }
     /// Optional additional logic specific to this widget type, with events from children.
     /// Returns events resulting from this update. For example, if children are added, it should
@@ -381,16 +412,6 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
         let (top, bot, right, left) = (y, y + h, x + w, x);
         mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
-    }
-    fn default_size_hint(&self) -> (SizeHint, SizeHint) {
-        (SizeHint::Minimize, SizeHint::Minimize)
-    }
-    /// Create a Widget with this Interactive.
-    fn wrap(self, id: Id) -> Widget
-    where
-        Self: Sized,
-    {
-        Widget::new(id, self)
     }
 }
 mopafy!(Interactive);

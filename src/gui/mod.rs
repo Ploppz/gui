@@ -4,12 +4,39 @@ use slog::Logger;
 mod drawer;
 pub use drawer::*;
 
+pub const ROOT: usize = 1;
+
+pub trait AsId<D: GuiDrawer> {
+    fn resolve(&self, gui: &Gui<D>) -> Option<Id>;
+}
+impl<D: GuiDrawer> AsId<D> for Id {
+    fn resolve(&self, _gui: &Gui<D>) -> Option<Id> {
+        Some(*self)
+    }
+}
+impl<D: GuiDrawer> AsId<D> for String {
+    fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
+        gui.aliases.get(self).map(|x| *x)
+    }
+}
+impl<D: GuiDrawer> AsId<D> for &String {
+    fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
+        gui.aliases.get(*self).map(|x| *x)
+    }
+}
+impl<D: GuiDrawer> AsId<D> for &str {
+    fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
+        gui.aliases.get(*self).map(|x| *x)
+    }
+}
+
 #[derive(Debug)]
 pub struct Gui<D: GuiDrawer> {
     pub root: Widget,
     screen: (f32, f32),
     drawer: D,
     pub paths: IndexMap<Id, Vec<Id>>,
+    pub aliases: IndexMap<String, Id>,
 
     id_cnt: usize,
     /// Events collected outside update function, consumed when update is called
@@ -18,16 +45,19 @@ pub struct Gui<D: GuiDrawer> {
 
 impl<D: GuiDrawer> Gui<D> {
     pub fn new(drawer: D) -> Gui<D> {
-        let root = Widget::new(1, Container::new())
-            .placement(Placement::fixed(0.0, 0.0))
-            .size_hint(SizeHint::External, SizeHint::External);
+        let root = Widget::new(
+            ROOT,
+            Box::new(Container::new()),
+            WidgetConfig::default().placement(Placement::fixed(0.0, 0.0)),
+        );
         Gui {
             root,
-            id_cnt: 1,
+            id_cnt: ROOT,
             drawer,
             screen: (0.0, 0.0),
             paths: IndexMap::new(),
             events: Vec::new(),
+            aliases: IndexMap::new(),
         }
     }
     pub fn update(
@@ -38,7 +68,7 @@ impl<D: GuiDrawer> Gui<D> {
     ) -> (Vec<(Id, WidgetEvent)>, Capture) {
         let mouse = self.drawer.transform_mouse(input.get_mouse_position(), ctx);
         let (sw, sh) = self.drawer.window_size(ctx);
-        self.root.size = (sw, sh);
+        self.root.config.set_size(sw, sh);
         let (mut events, capture) = self.root.update(input, sw, sh, mouse, log.clone());
         events.extend(std::mem::replace(&mut self.events, Vec::new()));
 
@@ -60,78 +90,136 @@ impl<D: GuiDrawer> Gui<D> {
         for op in ops {
             match op {
                 WidgetOp::Resize { id, size } => {
-                    self.get_widget_mut(id).unwrap().size = size;
+                    self.get_mut(id).config.set_size(size.0, size.1);
                     events.push((id, WidgetEvent::ChangeSize));
                 }
             }
         }
         (events, capture)
     }
-    pub fn insert_widget(&mut self, parent_id: Id, widget: Widget) -> Option<()> {
-        let id = widget.get_id();
-        if let Some(parent) = self.get_widget_mut(parent_id) {
-            // Insert
-            parent.children.insert(widget.id.clone(), widget);
+    pub fn insert<I: AsId<D>, W: Interactive>(
+        &mut self,
+        parent_id: I,
+        mut widget: W,
+    ) -> Option<Id> {
+        self.insert_internal(parent_id, Box::new(widget))
+    }
+    /// Returns None if widget referred to by parent_id does not exist
+    fn insert_internal<I: AsId<D>>(
+        &mut self,
+        parent_id: I,
+        mut widget: Box<dyn Interactive>,
+    ) -> Option<Id> {
+        if let Some(parent_id) = parent_id.resolve(self) {
+            // Create Widget and insert
+            self.id_cnt += 1;
+            let id = self.id_cnt;
+            let (children, config) = widget.init();
+            let widget = Widget::new(id, widget, config);
+            if let Some(parent) = self.try_get_mut(parent_id) {
+                parent.children.insert(id.clone(), widget);
+            } else {
+                return None;
+            }
             // Update paths
-            let mut path = self.paths[&parent_id].clone();
-            path.push(parent_id);
+            let path = if parent_id == 1 {
+                vec![]
+            } else {
+                let mut p = self.paths[&parent_id].clone();
+                p.push(parent_id);
+                p
+            };
             self.paths.insert(id, path);
             self.events.push((id, WidgetEvent::Change));
-            Some(())
+            // Insert children recursively
+            for child in children {
+                self.insert_internal(id, child); // TODO error handling
+            }
+            Some(id)
         } else {
             None
         }
     }
-    pub fn insert_widget_in_root(&mut self, widget: Widget) {
-        let id = widget.get_id();
-        self.root.children.insert(widget.id, widget);
-        self.paths.insert(id, vec![]);
-        self.events.push((id, WidgetEvent::Change));
+    pub fn insert_in_root<W: Interactive>(&mut self, widget: W) -> Id {
+        self.insert(ROOT, widget).unwrap()
     }
-    pub fn get_widget(&self, id: Id) -> Option<&Widget> {
-        if id == 1 {
-            return Some(&self.root);
-        }
-        if let Some(path) = self.paths.get(&id) {
-            let mut current = &self.root;
-            for id in path {
-                if let Some(child) = current.children.get(id) {
-                    current = child;
-                } else {
-                    panic!("Incorrect path (panicking to be sure to catch this error)");
+    pub fn insert_in_root_with_alias<W: Interactive>(&mut self, widget: W, alias: String) {
+        let id = self.insert(ROOT, widget).unwrap();
+        self.aliases.insert(alias, id);
+    }
+    /// Panics if widget does not exist, or if alias does not exist (if I = String)
+    pub fn get<I: AsId<D>>(&self, id: I) -> &Widget {
+        self.try_get(id).unwrap()
+    }
+    pub fn try_get<I: AsId<D>>(&self, id: I) -> Option<&Widget> {
+        if let Some(id) = id.resolve(self) {
+            if id == ROOT {
+                return Some(&self.root);
+            }
+            if let Some(path) = self.paths.get(&id) {
+                let mut current = &self.root;
+                for id in path {
+                    if let Some(child) = current.children.get(id) {
+                        current = child;
+                    } else {
+                        panic!("Incorrect path (gui programming error?)");
+                    }
                 }
-            }
-            if let Some(child) = current.children.get(&id) {
-                Some(child)
-            } else {
-                panic!("Path is wrong - child not found.  child {}", id);
-            }
-        } else {
-            None
-        }
-    }
-    pub fn get_widget_mut(&mut self, id: Id) -> Option<&mut Widget> {
-        if id == 1 {
-            return Some(&mut self.root);
-        }
-        if let Some(path) = self.paths.get(&id) {
-            let mut current = &mut self.root;
-            for id in path {
-                if let Some(child) = current.children.get_mut(id) {
-                    current = child;
+                if let Some(child) = current.children.get(&id) {
+                    Some(child)
                 } else {
-                    panic!("Incorrect path (panicking to be sure to catch this error)");
+                    panic!(
+                        "Incorrect path (gui programming error?): reached destination but no child"
+                    );
                 }
-            }
-            if let Some(child) = current.children.get_mut(&id) {
-                Some(child)
             } else {
-                panic!("Path is wrong - child not found.  child {}", id);
+                None
             }
         } else {
             None
         }
     }
+
+    pub fn get_mut<I: AsId<D>>(&mut self, id: I) -> &mut Widget {
+        self.try_get_mut(id).unwrap()
+    }
+
+    pub fn try_get_mut<I: AsId<D>>(&mut self, id: I) -> Option<&mut Widget> {
+        if let Some(id) = id.resolve(self) {
+            if id == ROOT {
+                return Some(&mut self.root);
+            }
+            if let Some(path) = self.paths.get(&id) {
+                let mut current = &mut self.root;
+                for id in path {
+                    if let Some(child) = current.children.get_mut(id) {
+                        current = child;
+                    } else {
+                        panic!(
+                            "Incorrect path (gui programming error?).
+                            {} not a child of {} on path {:?}",
+                            id, current.id, path
+                        );
+                    }
+                }
+                if let Some(child) = current.children.get_mut(&id) {
+                    Some(child)
+                } else {
+                    panic!(
+                        "Incorrect path (gui programming error?): reached destination but no child"
+                    );
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+    pub fn id_eq<I: AsId<D>, J: AsId<D>>(&self, i: I, j: J) -> bool {
+        i.resolve(self) == j.resolve(self)
+    }
+
     /// Recursively process all widgets (mutably) in the tree
     // TODO immutable version
     pub fn widgets_mut(&mut self, f: &mut dyn FnMut(&mut Widget)) {

@@ -19,8 +19,4 @@ impl Interactive for TextField {
             keyboard: false,
         }
     }
-
-    fn default_size_hint(&self) -> (SizeHint, SizeHint) {
-        (SizeHint::External, SizeHint::External)
-    }
 }
