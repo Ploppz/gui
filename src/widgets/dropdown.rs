@@ -1,6 +1,5 @@
 use crate::*;
 use indexmap::IndexMap;
-use uuid::Uuid;
 
 #[derive(Debug)]
 struct DropdownOption {
@@ -17,7 +16,6 @@ pub struct DropdownButton {
 }
 impl DropdownButton {
     pub fn new() -> DropdownButton {
-        // children.insert(id.clone(), ToggleButton::new(String::from("---")).wrap(unimplemented!()));
         DropdownButton {
             options: Vec::new(),
             opt_map: IndexMap::new(),
@@ -33,7 +31,7 @@ impl Interactive for DropdownButton {
     fn update(
         &mut self,
         events: &[(Id, WidgetEvent)],
-        children: &mut IndexMap<Id, Widget>,
+        children: &mut ChildrenProxy,
     ) -> Vec<(Id, WidgetEvent)> {
         let new_events = Vec::new();
 
@@ -46,14 +44,13 @@ impl Interactive for DropdownButton {
                     let toggled = children[id].downcast_ref::<ToggleButton>().unwrap().state;
                     if toggled {
                         for option in &self.options {
-                            // children.insert(
-                            // id,
-                            // Button::new(option.name.clone()).wrap(id.clone()),
-                            // );
+                            children.insert(Box::new(Button::new(option.name.clone())));
                             // new_events.push((id, WidgetEvent::Change));
+                            // TODO NEXT: way to add children
+                            // so it has to return Vec<Box<Fn(&mut Gui)>> as well?
                         }
                     } else {
-                        children.retain(|id, _| *id == self.main_button_id);
+                        // children.retain(|id, _| *id == self.main_button_id);
                     }
                 }
             }
@@ -72,16 +69,11 @@ impl Interactive for DropdownButton {
         }
         new_events
     }
-    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
-        (
-            Vec::new(),
-            WidgetConfig::default().padding(4.0, 4.0, 6.0, 6.0).layout(
-                Axis::Y,
-                false,
-                Anchor::Min,
-                2.0,
-            ),
-        )
+    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
+        children.insert(Box::new(ToggleButton::new(String::from("---"))) as Box<dyn Interactive>);
+        WidgetConfig::default()
+            .padding(4.0, 4.0, 6.0, 6.0)
+            .layout(Axis::Y, false, Anchor::Min, 2.0)
     }
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
         false

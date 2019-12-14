@@ -18,13 +18,11 @@ impl Button {
     }
 }
 impl Interactive for Button {
-    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
-        (
-            vec![Box::new(TextField::new(self.text.clone()))],
-            WidgetConfig::default()
-                .size_hint(SizeHint::Minimize, SizeHint::Minimize)
-                .padding(4.0, 4.0, 6.0, 6.0),
-        )
+    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
+        children.insert(Box::new(TextField::new(self.text.clone())));
+        WidgetConfig::default()
+            .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+            .padding(4.0, 4.0, 6.0, 6.0)
     }
 
     fn handle_event(&mut self, _: WidgetEvent) -> bool {
@@ -54,13 +52,11 @@ impl ToggleButton {
     }
 }
 impl Interactive for ToggleButton {
-    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
-        (
-            vec![Box::new(TextField::new(self.text.clone()))],
-            WidgetConfig::default()
-                .size_hint(SizeHint::Minimize, SizeHint::Minimize)
-                .padding(4.0, 4.0, 6.0, 6.0),
-        )
+    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
+        children.insert(Box::new(TextField::new(self.text.clone())));
+        WidgetConfig::default()
+            .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+            .padding(4.0, 4.0, 6.0, 6.0)
     }
     fn handle_event(&mut self, event: WidgetEvent) -> bool {
         if let WidgetEvent::Release = event {

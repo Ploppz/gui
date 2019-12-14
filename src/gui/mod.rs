@@ -3,6 +3,7 @@ use indexmap::IndexMap;
 use slog::Logger;
 mod drawer;
 pub use drawer::*;
+use std::{cell::RefCell, rc::Rc};
 
 pub const ROOT: usize = 1;
 
@@ -30,32 +31,43 @@ impl<D: GuiDrawer> AsId<D> for &str {
     }
 }
 
+/// Just some fields needed to create widgets..
+#[derive(Debug, Clone)]
+pub struct ChildService {
+    pub paths: IndexMap<Id, Vec<Id>>,
+    id_cnt: usize,
+}
+impl ChildService {
+    pub fn new_id(&mut self) -> Id {
+        self.id_cnt += 1;
+        self.id_cnt
+    }
+}
+
 #[derive(Debug)]
 pub struct Gui<D: GuiDrawer> {
     pub root: Widget,
     screen: (f32, f32),
     drawer: D,
-    pub paths: IndexMap<Id, Vec<Id>>,
     pub aliases: IndexMap<String, Id>,
-
-    id_cnt: usize,
+    pub child_service: Rc<RefCell<ChildService>>,
     /// Events collected outside update function, consumed when update is called
     events: Vec<(Id, WidgetEvent)>,
 }
 
 impl<D: GuiDrawer> Gui<D> {
     pub fn new(drawer: D) -> Gui<D> {
-        let root = Widget::new(
-            ROOT,
-            Box::new(Container::new()),
-            WidgetConfig::default().placement(Placement::fixed(0.0, 0.0)),
-        );
+        let child_service = Rc::new(RefCell::new(ChildService {
+            paths: IndexMap::new(),
+            id_cnt: ROOT,
+        }));
+        let mut root = Widget::new(ROOT, Box::new(Container::new()), child_service.clone());
+        root.config = root.config.placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
-            id_cnt: ROOT,
             drawer,
             screen: (0.0, 0.0),
-            paths: IndexMap::new(),
+            child_service: child_service,
             events: Vec::new(),
             aliases: IndexMap::new(),
         }
@@ -73,12 +85,13 @@ impl<D: GuiDrawer> Gui<D> {
         events.extend(std::mem::replace(&mut self.events, Vec::new()));
 
         // update parent relations
-        let mut old_paths = std::mem::replace(&mut self.paths, IndexMap::new());
+        let mut old_paths =
+            std::mem::replace(&mut self.child_service.borrow_mut().paths, IndexMap::new());
         update_paths_recurse(
             vec![],
             &mut self.root,
             &mut old_paths,
-            &mut self.paths,
+            &mut self.child_service.borrow_mut().paths,
             &mut events,
         );
         // entries left in `old_paths` are deleted widget ids
@@ -97,45 +110,30 @@ impl<D: GuiDrawer> Gui<D> {
         }
         (events, capture)
     }
-    pub fn insert<I: AsId<D>, W: Interactive>(
-        &mut self,
-        parent_id: I,
-        mut widget: W,
-    ) -> Option<Id> {
+    pub fn insert<I: AsId<D>, W: Interactive>(&mut self, parent_id: I, widget: W) -> Option<Id> {
         self.insert_internal(parent_id, Box::new(widget))
     }
     /// Returns None if widget referred to by parent_id does not exist
     fn insert_internal<I: AsId<D>>(
         &mut self,
         parent_id: I,
-        mut widget: Box<dyn Interactive>,
+        widget: Box<dyn Interactive>,
     ) -> Option<Id> {
         if let Some(parent_id) = parent_id.resolve(self) {
+            let child_service = self.child_service.clone();
             // Create Widget and insert
-            self.id_cnt += 1;
-            let id = self.id_cnt;
-            let (children, config) = widget.init();
-            let widget = Widget::new(id, widget, config);
             if let Some(parent) = self.try_get_mut(parent_id) {
-                parent.children.insert(id.clone(), widget);
+                let mut children = ChildrenProxy {
+                    self_id: parent_id,
+                    children: &mut parent.children,
+                    child_service,
+                };
+                Some(children.insert(widget))
+            // TODO ???
+            // self.events.push((id, WidgetEvent::Change));
             } else {
                 return None;
             }
-            // Update paths
-            let path = if parent_id == 1 {
-                vec![]
-            } else {
-                let mut p = self.paths[&parent_id].clone();
-                p.push(parent_id);
-                p
-            };
-            self.paths.insert(id, path);
-            self.events.push((id, WidgetEvent::Change));
-            // Insert children recursively
-            for child in children {
-                self.insert_internal(id, child); // TODO error handling
-            }
-            Some(id)
         } else {
             None
         }
@@ -156,7 +154,7 @@ impl<D: GuiDrawer> Gui<D> {
             if id == ROOT {
                 return Some(&self.root);
             }
-            if let Some(path) = self.paths.get(&id) {
+            if let Some(path) = self.child_service.borrow().paths.get(&id) {
                 let mut current = &self.root;
                 for id in path {
                     if let Some(child) = current.children.get(id) {
@@ -189,7 +187,7 @@ impl<D: GuiDrawer> Gui<D> {
             if id == ROOT {
                 return Some(&mut self.root);
             }
-            if let Some(path) = self.paths.get(&id) {
+            if let Some(path) = self.child_service.borrow().paths.get(&id) {
                 let mut current = &mut self.root;
                 for id in path {
                     if let Some(child) = current.children.get_mut(id) {

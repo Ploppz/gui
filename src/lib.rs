@@ -11,6 +11,7 @@ extern crate derive_deref;
 use indexmap::IndexMap;
 use mopa::Any;
 use slog::Logger;
+use std::{cell::RefCell, ops::Deref, rc::Rc};
 use winput::Input;
 
 mod gui;
@@ -25,89 +26,16 @@ pub mod test_common;
 
 pub type Id = usize;
 
-#[derive(Debug, Clone, Copy)]
-pub struct WidgetConfig {
-    /// Optional positioning; makes this widget not participate in its siblings' layout
-    pub place: Option<Placement>,
-    /// The axis along which to stack children
-    pub layout_direction: Axis,
-    /// If true, children are stacked in the cross axis when the main axis fills up.
-    pub layout_wrap: bool,
-    /// Alignment of children along the cross axis (the axis which is not the direction).
-    pub layout_align: Anchor,
-    /// Space between widgets in the main axis.
-    /// TODO: should maybe be a "justify" enum where you can choose to space them evenly etc
-    pub layout_main_margin: f32,
-
-    // padding
-    /// left and top padding respectively
-    pub padding_min: (f32, f32),
-    /// right and bot padding respectively
-    pub padding_max: (f32, f32),
-
-    // size hints
-    pub size_hint_x: SizeHint,
-    pub size_hint_y: SizeHint,
-}
-impl Default for WidgetConfig {
-    fn default() -> Self {
-        WidgetConfig {
-            place: None,
-            layout_direction: Axis::X,
-            layout_wrap: false,
-            layout_align: Anchor::Min,
-            layout_main_margin: 0.0,
-
-            padding_min: (0.0, 0.0),
-            padding_max: (0.0, 0.0),
-
-            size_hint_x: SizeHint::default(),
-            size_hint_y: SizeHint::default(),
+/// Macro is needed rather than a member function, in order to preserve borrow information:
+/// so that the compiler knows that only `self.children` is borrowed.
+macro_rules! children_proxy {
+    ($self:ident) => {
+        ChildrenProxy {
+            self_id: $self.id,
+            children: &mut $self.children,
+            child_service: $self.child_service.clone(),
         }
-    }
-}
-impl WidgetConfig {
-    pub fn layout(
-        mut self,
-        layout_direction: Axis,
-        layout_wrap: bool,
-        layout_align: Anchor,
-        _layout_main_margin: f32,
-    ) -> Self {
-        self.layout_direction = layout_direction;
-        self.layout_wrap = layout_wrap;
-        self.layout_align = layout_align;
-        self.layout_main_margin = self.layout_main_margin;
-        self
-    }
-    pub fn placement(mut self, place: Placement) -> Self {
-        self.place = Some(place);
-        self
-    }
-    pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
-        self.size_hint_x = x;
-        self.size_hint_y = y;
-        self
-    }
-    /// Fixed width
-    pub fn width(mut self, w: f32) -> Self {
-        self.size_hint_x = SizeHint::External(w);
-        self
-    }
-    /// Fixed height
-    pub fn height(mut self, h: f32) -> Self {
-        self.size_hint_y = SizeHint::External(h);
-        self
-    }
-    pub fn set_size(&mut self, w: f32, h: f32) {
-        self.size_hint_x = SizeHint::External(w);
-        self.size_hint_y = SizeHint::External(h);
-    }
-    pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
-        self.padding_min = (left, top);
-        self.padding_max = (right, bot);
-        self
-    }
+    };
 }
 
 #[derive(Deref, DerefMut, Debug)]
@@ -127,6 +55,8 @@ pub struct Widget {
     pub size: (f32, f32),
 
     pub config: WidgetConfig,
+
+    child_service: Rc<RefCell<ChildService>>,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -153,14 +83,26 @@ macro_rules! event {
 }
 
 impl Widget {
-    pub fn new(id: Id, widget: Box<dyn Interactive>, config: WidgetConfig) -> Widget {
+    pub fn new(
+        id: Id,
+        mut widget: Box<dyn Interactive>,
+        child_service: Rc<RefCell<ChildService>>,
+    ) -> Widget {
+        let mut children = IndexMap::new();
+        let mut proxy = ChildrenProxy {
+            self_id: id,
+            children: &mut children,
+            child_service: child_service.clone(),
+        };
+        let config = widget.init(&mut proxy);
         Widget {
             inner: widget,
-            children: IndexMap::new(),
+            children,
             pos: (0.0, 0.0),
             rel_pos: (0.0, 0.0),
             size: (10.0, 10.0),
             config,
+            child_service,
 
             inside: false,
             pressed: false,
@@ -223,7 +165,7 @@ impl Widget {
             events.extend(child_events.into_iter());
         }
         // Execute widget-specific logic
-        let events2 = self.inner.update(&events, &mut self.children);
+        let events2 = self.inner.update(&events, &mut children_proxy!(self));
         // If there are any events pertaining any children, we need to recurse children again
         let re_recurse = events2.iter().any(|(id, _)| *id != self.id);
         if re_recurse {
@@ -375,17 +317,141 @@ impl Widget {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct WidgetConfig {
+    /// Optional positioning; makes this widget not participate in its siblings' layout
+    pub place: Option<Placement>,
+    /// The axis along which to stack children
+    pub layout_direction: Axis,
+    /// If true, children are stacked in the cross axis when the main axis fills up.
+    pub layout_wrap: bool,
+    /// Alignment of children along the cross axis (the axis which is not the direction).
+    pub layout_align: Anchor,
+    /// Space between widgets in the main axis.
+    /// TODO: should maybe be a "justify" enum where you can choose to space them evenly etc
+    pub layout_main_margin: f32,
+
+    // padding
+    /// left and top padding respectively
+    pub padding_min: (f32, f32),
+    /// right and bot padding respectively
+    pub padding_max: (f32, f32),
+
+    // size hints
+    pub size_hint_x: SizeHint,
+    pub size_hint_y: SizeHint,
+}
+impl Default for WidgetConfig {
+    fn default() -> Self {
+        WidgetConfig {
+            place: None,
+            layout_direction: Axis::X,
+            layout_wrap: false,
+            layout_align: Anchor::Min,
+            layout_main_margin: 0.0,
+
+            padding_min: (0.0, 0.0),
+            padding_max: (0.0, 0.0),
+
+            size_hint_x: SizeHint::default(),
+            size_hint_y: SizeHint::default(),
+        }
+    }
+}
+impl WidgetConfig {
+    pub fn layout(
+        mut self,
+        layout_direction: Axis,
+        layout_wrap: bool,
+        layout_align: Anchor,
+        _layout_main_margin: f32,
+    ) -> Self {
+        self.layout_direction = layout_direction;
+        self.layout_wrap = layout_wrap;
+        self.layout_align = layout_align;
+        self.layout_main_margin = self.layout_main_margin;
+        self
+    }
+    pub fn placement(mut self, place: Placement) -> Self {
+        self.place = Some(place);
+        self
+    }
+    pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
+        self.size_hint_x = x;
+        self.size_hint_y = y;
+        self
+    }
+    /// Fixed width
+    pub fn width(mut self, w: f32) -> Self {
+        self.size_hint_x = SizeHint::External(w);
+        self
+    }
+    /// Fixed height
+    pub fn height(mut self, h: f32) -> Self {
+        self.size_hint_y = SizeHint::External(h);
+        self
+    }
+    pub fn set_size(&mut self, w: f32, h: f32) {
+        self.size_hint_x = SizeHint::External(w);
+        self.size_hint_y = SizeHint::External(h);
+    }
+    pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
+        self.padding_min = (left, top);
+        self.padding_max = (right, bot);
+        self
+    }
+}
+
+/// Provides an interface to insert, delete and get children.
+/// Through Deref, we can get the immediate children immutably.
+///
+pub struct ChildrenProxy<'a> {
+    self_id: Id,
+    /// children of a widget
+    children: &'a mut IndexMap<Id, Widget>,
+    child_service: Rc<RefCell<ChildService>>,
+}
+impl<'a> Deref for ChildrenProxy<'a> {
+    type Target = IndexMap<Id, Widget>;
+    fn deref(&self) -> &Self::Target {
+        self.children
+    }
+}
+impl<'a> ChildrenProxy<'a> {
+    pub fn insert(&mut self, widget: Box<dyn Interactive>) -> Id {
+        let id = self.child_service.borrow_mut().new_id();
+
+        // Update paths
+        let path = if self.self_id == 1 {
+            vec![]
+        } else {
+            let mut p = self.child_service.borrow().paths[&self.self_id].clone();
+            p.push(self.self_id);
+            p
+        };
+        self.child_service.borrow_mut().paths.insert(id, path);
+        let widget = Widget::new(id, widget, self.child_service.clone());
+        self.children.insert(id, widget);
+        id
+    }
+    pub fn remove(&mut self, id: Id) -> Option<Widget> {
+        self.children.shift_remove(&id)
+    }
+}
+
 // TODO move to its own module. Problem with MOPA
 /// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.
 pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// Exists to make it possible for a widget to create children - Gui and Widget
-    /// are required for that. Called once when `self` is registered in Gui. Gui then
-    /// assigns id to each child widget returned, and adds it to the enclosing Widget.
+    /// are required for that.
+    /// `init` will be called once while the widget is being added to Gui.
+    /// `children` provides an interface to add/delete/get children of this widget.
+    /// That is, it is basically a wrapper around the owning Widget's `children`
 
-    fn init(&mut self) -> (Vec<Box<dyn Interactive>>, WidgetConfig) {
-        (Vec::new(), WidgetConfig::default())
+    fn init(&mut self, _children: &mut ChildrenProxy) -> WidgetConfig {
+        WidgetConfig::default()
     }
     /// Optional additional logic specific to this widget type, with events from children.
     /// Returns events resulting from this update. For example, if children are added, it should
@@ -393,7 +459,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     fn update(
         &mut self,
         _events: &[(Id, WidgetEvent)],
-        children: &mut IndexMap<Id, Widget>,
+        _children: &mut ChildrenProxy,
     ) -> Vec<(Id, WidgetEvent)> {
         Vec::new()
     }
