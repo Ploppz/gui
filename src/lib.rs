@@ -15,10 +15,12 @@ use std::{cell::RefCell, ops::Deref, rc::Rc};
 use winput::Input;
 
 mod gui;
+mod lens;
 mod placement;
 mod widgets;
 
 pub use crate::gui::*;
+pub use lens::*;
 pub use placement::*;
 pub use widgets::*;
 
@@ -110,8 +112,15 @@ impl Widget {
             id,
         }
     }
+    /// Remove child for real - only for internal use.
+    pub(crate) fn remove(&mut self, id: Id) -> Option<()> {
+        self.children.remove(&id).map(drop)
+    }
     pub fn children(&self) -> &IndexMap<Id, Widget> {
         &self.children
+    }
+    pub fn children_proxy(&mut self) -> ChildrenProxy {
+        children_proxy!(self)
     }
     pub fn get_id(&self) -> Id {
         self.id
@@ -294,7 +303,7 @@ impl Widget {
         layout_progress += self.config.padding_max[main_axis];
 
         let mut new_size = self.size;
-        println!("[positioning {}] pre size {:?}", self.id, new_size);
+        // println!("[positioning {}] pre size {:?}", self.id, new_size);
         let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
         match size_hint[main_axis] {
             SizeHint::Minimize => new_size[main_axis] = layout_progress,
@@ -314,6 +323,16 @@ impl Widget {
         }
 
         events
+    }
+    pub fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
+        Box::new(
+            self.children.values().chain(
+                self.children
+                    .values()
+                    .map(|child| child.recursive_children_iter())
+                    .flatten(),
+            ),
+        )
     }
 }
 
@@ -395,6 +414,12 @@ impl WidgetConfig {
         self.size_hint_x = SizeHint::External(w);
         self.size_hint_y = SizeHint::External(h);
     }
+    pub fn set_width(&mut self, w: f32) {
+        self.size_hint_x = SizeHint::External(w);
+    }
+    pub fn set_height(&mut self, h: f32) {
+        self.size_hint_y = SizeHint::External(h);
+    }
     pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
         self.padding_min = (left, top);
         self.padding_max = (right, bot);
@@ -402,8 +427,12 @@ impl WidgetConfig {
     }
 }
 
-/// Provides an interface to insert, delete and get children.
+/// Provides an interface to insert, delete and get immediate children.
 /// Through Deref, we can get the immediate children immutably.
+/// DerefMut is not implemented, because it is forbidden to insert children without using the
+/// provided `ChildrenProxy::insert` function.
+/// NOTE: If you need to get a widget in the widget tree that is not immediate, look to
+/// [gui::WidgetLens] or the getters of [Gui]
 ///
 pub struct ChildrenProxy<'a> {
     self_id: Id,
@@ -434,8 +463,15 @@ impl<'a> ChildrenProxy<'a> {
         self.children.insert(id, widget);
         id
     }
-    pub fn remove(&mut self, id: Id) -> Option<Widget> {
-        self.children.shift_remove(&id)
+    pub fn remove(&mut self, id: Id) {
+        self.child_service.borrow_mut().remove(id);
+        // self.children.shift_remove(&id)
+    }
+    pub fn get_mut(&mut self, id: Id) -> &mut Widget {
+        self.children.get_mut(&id).unwrap()
+    }
+    pub fn values_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
+        self.children.values_mut()
     }
 }
 

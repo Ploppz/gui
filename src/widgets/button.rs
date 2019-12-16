@@ -1,25 +1,44 @@
+#![allow(non_upper_case_globals)]
+use crate::lens::Lens;
 use crate::*;
 
-#[derive(Debug)]
-pub struct Button {
-    text: String,
-    text_changed: bool,
-}
-impl Button {
-    pub fn new(text: String) -> Button {
-        Button {
-            text,
-            text_changed: false,
-        }
+pub struct ButtonTextLens;
+impl Lens<Widget, String> for ButtonTextLens {
+    fn with<V, F: FnOnce(&String) -> V>(&self, w: &Widget, f: F) -> V {
+        let text = &w
+            .children()
+            .values()
+            .next()
+            .unwrap()
+            .downcast_ref::<TextField>()
+            .unwrap()
+            .text;
+        f(text)
     }
-    pub fn set_text(&mut self, text: String) {
-        self.text = text;
-        self.text_changed = true;
+    fn with_mut<V, F: FnOnce(&mut String) -> V>(&self, w: &mut Widget, f: F) -> V {
+        let mut proxy = w.children_proxy();
+        let text_widget = proxy.values_mut().next().unwrap();
+        let text = &mut text_widget.downcast_mut::<TextField>().unwrap().text;
+        let old_text = text.clone();
+        let result = f(text);
+        if old_text != *text {
+            text_widget.mark_change();
+        }
+        result
+    }
+}
+
+#[derive(Debug)]
+pub struct Button {}
+impl Button {
+    pub const text: ButtonTextLens = ButtonTextLens;
+    pub fn new() -> Button {
+        Button {}
     }
 }
 impl Interactive for Button {
     fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(self.text.clone())));
+        children.insert(Box::new(TextField::new(String::new())));
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)
@@ -36,24 +55,66 @@ impl Interactive for Button {
     }
 }
 
+pub struct ToggleButtonTextLens;
+impl Lens<Widget, String> for ToggleButtonTextLens {
+    fn with<V, F: FnOnce(&String) -> V>(&self, w: &Widget, f: F) -> V {
+        let text = &w
+            .children()
+            .values()
+            .next()
+            .unwrap()
+            .downcast_ref::<TextField>()
+            .unwrap()
+            .text;
+        f(text)
+    }
+    fn with_mut<V, F: FnOnce(&mut String) -> V>(&self, w: &mut Widget, f: F) -> V {
+        let mut proxy = w.children_proxy();
+        let text_widget = proxy.values_mut().next().unwrap();
+        let text = &mut text_widget.downcast_mut::<TextField>().unwrap().text;
+        let old_text = text.clone();
+        let result = f(text);
+        if old_text != *text {
+            text_widget.mark_change();
+            println!("MARKED CHANGE IN TEXT");
+        }
+        result
+    }
+}
+pub struct ToggleButtonStateLens;
+impl Lens<Widget, bool> for ToggleButtonStateLens {
+    fn with<V, F: FnOnce(&bool) -> V>(&self, w: &Widget, f: F) -> V {
+        let state = &w.downcast_ref::<ToggleButton>().unwrap().state;
+        f(state)
+    }
+    fn with_mut<V, F: FnOnce(&mut bool) -> V>(&self, w: &mut Widget, f: F) -> V {
+        let mut proxy = w.children_proxy();
+        let state = &mut w.downcast_mut::<ToggleButton>().unwrap().state;
+        let old_state = state.clone();
+        let result = f(state);
+        if old_state != *state {
+            w.mark_change();
+        }
+        result
+    }
+}
+
 #[derive(Debug)]
 pub struct ToggleButton {
     pub state: bool,
-    text: String,
-    text_changed: bool,
 }
 impl ToggleButton {
-    pub fn new(text: String) -> ToggleButton {
-        ToggleButton {
-            text,
-            text_changed: false,
-            state: false,
-        }
+    /// Lens to access and modify the text of the button
+    pub const text: ToggleButtonTextLens = ToggleButtonTextLens;
+    /// Lens to access and modify the state of the button
+    pub const state: ToggleButtonStateLens = ToggleButtonStateLens;
+    pub fn new() -> ToggleButton {
+        ToggleButton { state: false }
     }
 }
 impl Interactive for ToggleButton {
     fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(self.text.clone())));
+        children.insert(Box::new(TextField::new(String::new())));
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)
