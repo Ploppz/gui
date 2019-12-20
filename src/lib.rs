@@ -47,12 +47,15 @@ pub struct Widget {
     /// Children of this node in the widget tree.
     children: IndexMap<Id, Widget>,
     /// Current absolute position as calculated by layout algorithm.
+    /// Any mutation to `pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub pos: (f32, f32),
     /// Current relative (to parent) position as calculated by layout algorithm
+    /// Any mutation to `rel_pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub rel_pos: (f32, f32),
     /// Current size as calculated by layout algorithm
+    /// Any mutation to `size` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub size: (f32, f32),
 

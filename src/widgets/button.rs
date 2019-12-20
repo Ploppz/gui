@@ -5,26 +5,13 @@ use crate::*;
 pub struct ButtonTextLens;
 impl Lens<Widget, String> for ButtonTextLens {
     fn with<V, F: FnOnce(&String) -> V>(&self, w: &Widget, f: F) -> V {
-        let text = &w
-            .children()
-            .values()
-            .next()
-            .unwrap()
-            .downcast_ref::<TextField>()
-            .unwrap()
-            .text;
-        f(text)
+        let text_widget = &w.children().values().next().unwrap();
+        TextField::text.with(text_widget, f)
     }
     fn with_mut<V, F: FnOnce(&mut String) -> V>(&self, w: &mut Widget, f: F) -> V {
         let mut proxy = w.children_proxy();
         let text_widget = proxy.values_mut().next().unwrap();
-        let text = &mut text_widget.downcast_mut::<TextField>().unwrap().text;
-        let old_text = text.clone();
-        let result = f(text);
-        if old_text != *text {
-            text_widget.mark_change();
-        }
-        result
+        TextField::text.with_mut(text_widget, f)
     }
 }
 

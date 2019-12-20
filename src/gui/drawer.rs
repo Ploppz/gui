@@ -22,9 +22,12 @@ pub trait GuiDrawer: Sized {
         log: Logger,
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
+    /// Determine size of rendered text without rendering it.
+    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> (f32, f32);
 }
 
 /// Empty implementor of GuiDrawer, for a headless Gui.
+/// Note: Text size and window size are always zero.
 pub struct NoDrawer;
 impl GuiDrawer for NoDrawer {
     type Context = ();
@@ -42,6 +45,9 @@ impl GuiDrawer for NoDrawer {
         _ctx: &mut Self::Context,
     ) -> Vec<WidgetOp> {
         Vec::new()
+    }
+    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> (f32, f32) {
+        (0.0, 0.0)
     }
 }
 

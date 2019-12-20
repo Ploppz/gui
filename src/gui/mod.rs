@@ -1,7 +1,7 @@
 use crate::lens::Lens;
 use crate::*;
 use indexmap::IndexMap;
-use slog::Logger;
+use slog::{info, Logger};
 mod drawer;
 use std::{cell::RefCell, rc::Rc};
 
@@ -128,6 +128,30 @@ impl<D: GuiDrawer> Gui<D> {
             parent.remove(id_to_remove);
         }
 
+        // Update sizes of text fields that have changed
+        // - temporary solution - silly to require a while traversal only for that (TODO)
+        {
+            let mut changed_texts = Vec::new();
+            for child in self.root.recursive_children_iter() {
+                if child.changed {
+                    if child.inner.is::<TextField>() {
+                        let text = child
+                            .inner
+                            .downcast_ref::<TextField>()
+                            .unwrap()
+                            .text
+                            .clone();
+                        changed_texts.push((child.get_id(), text));
+                    }
+                }
+            }
+            for (id, text) in changed_texts {
+                let text_size = self.drawer.text_size(&text, ctx);
+                info!(log, "EARLY TEXT UPDATE ({}) -> {:?}", text, text_size);
+                WidgetLens::get(id).with_mut(self, |w| w.config.set_size(text_size.0, text_size.1))
+            }
+        }
+
         // Update logic recursively
         let (mut events, capture) = self.root.update(input, sw, sh, mouse, log.clone());
         events.extend(std::mem::replace(&mut self.events, Vec::new()));
@@ -142,7 +166,7 @@ impl<D: GuiDrawer> Gui<D> {
             &mut self.child_service.borrow_mut().paths,
             &mut events,
         );
-        // TODO remove old_paths - not needed
+        // TODO remove old_paths - not needed (?) (removal is now marked through ChildService
 
         // Signal removal to renderer
         for to_remove_id in &self.child_service.borrow().to_remove {

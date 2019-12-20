@@ -29,7 +29,10 @@ impl Lens<Widget, String> for TextFieldLens {
         f(text)
     }
     fn with_mut<V, F: FnOnce(&mut String) -> V>(&self, w: &mut Widget, f: F) -> V {
-        let text = &mut w.downcast_mut::<TextField>().unwrap().text;
+        let text = &mut w
+            .downcast_mut::<TextField>()
+            .expect("Expected TextField")
+            .text;
         let old_text = text.clone();
         let result = f(text);
         if old_text != *text {
