@@ -50,6 +50,15 @@ impl ChildService {
     }
 }
 
+pub struct OperationService {
+    operations: Vec<(Id, Box<dyn FnOnce(&mut Widget)>)>,
+}
+impl OperationService {
+    pub fn push<O: FnOnce(&mut Widget) + 'static>(&mut self, id: Id, op: O) {
+        self.operations.push(Box::new(op));
+    }
+}
+
 #[derive(Debug)]
 pub struct Gui<D: GuiDrawer> {
     pub root: Widget,
@@ -57,9 +66,18 @@ pub struct Gui<D: GuiDrawer> {
     drawer: D,
     pub aliases: IndexMap<String, Id>,
     pub child_service: Rc<RefCell<ChildService>>,
+    /// Allows operations on widgets to be added from anywhere (in the same thread)
+    pub op_service: Rc<RefCell<OperationService>>,
     /// Events collected outside update function, consumed when update is called
     events: Vec<(Id, WidgetEvent)>,
 }
+
+/// Provides access to a widget
+pub struct WidgetProxy {
+    op_service: Rc<RefCell<OperationService>>,
+}
+// WidgetLens resolves Gui -> WidgetProxy.
+// From there, you should chain it with e.g. `Button::text`, which goes WidgetProxy
 
 pub struct WidgetLens<D, I> {
     id: I,

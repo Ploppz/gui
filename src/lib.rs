@@ -1,3 +1,4 @@
+#![feature(type_alias_impl_trait)]
 //! # Gui
 //!
 //! ## Layout
@@ -8,6 +9,7 @@
 extern crate mopa;
 #[macro_use]
 extern crate derive_deref;
+
 use indexmap::IndexMap;
 use mopa::Any;
 use slog::Logger;
@@ -16,6 +18,7 @@ use winput::Input;
 
 mod gui;
 mod lens;
+mod lens2;
 mod placement;
 mod widgets;
 
