@@ -1,14 +1,15 @@
 #![allow(non_upper_case_globals)]
-use crate::lens::Lens;
+use crate::lens2::FieldLens;
 use crate::*;
 
 pub struct ButtonTextLens;
-impl Lens<Widget, String> for ButtonTextLens {
-    fn with<V, F: FnOnce(&String) -> V>(&self, w: &Widget, f: F) -> V {
-        let text_widget = &w.children().values().next().unwrap();
-        TextField::text.with(text_widget, f)
+impl FieldLens for ButtonTextLens {
+    type Target = String;
+    fn get(&self, source: &Widget) -> &String {
+        let text_widget = &source.children().values().next().unwrap();
+        TextField::text.get(text_widget)
     }
-    fn with_mut<V, F: FnOnce(&mut String) -> V>(&self, w: &mut Widget, f: F) -> V {
+    fn put(&self, value: Self::Target) -> Box<dyn FnOnce(&mut Widget)> {
         let mut proxy = w.children_proxy();
         let text_widget = proxy.values_mut().next().unwrap();
         TextField::text.with_mut(text_widget, f)

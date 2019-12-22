@@ -1,3 +1,4 @@
+use crate::lens2::*;
 use crate::*;
 
 #[derive(Debug)]
@@ -39,5 +40,25 @@ impl Lens<Widget, String> for TextFieldLens {
             w.mark_change();
         }
         result
+    }
+}
+
+impl FieldLens for TextFieldLens {
+    type Target = String;
+    fn get<'a>(&self, source: &'a Widget) -> &'a String {
+        &source.downcast_ref::<TextField>().unwrap().text
+    }
+    fn put(&self, value: Self::Target) -> Box<dyn FnOnce(&mut Widget)> {
+        Box::new(|w| {
+            let text = &mut w
+                .downcast_mut::<TextField>()
+                .expect("Expected TextField")
+                .text;
+            let old_text = text.clone();
+            *text = value;
+            if old_text != *text {
+                w.mark_change();
+            }
+        })
     }
 }

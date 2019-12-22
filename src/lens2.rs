@@ -2,104 +2,74 @@ use crate::gui::*;
 use crate::*;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-pub trait LazyLens {
-    type Source;
+/// note: not used directly - used in conjunction with a LensDriver
+pub trait FieldLens {
     type Target;
-    type Cascade;
-    /// Used for getting immutable values.
-    fn with<V, F: FnOnce(&Self::Target) -> V>(&self, data: &Self::Source, f: F) -> V;
-    // reserved for RootLens:
-    // fn put<F: FnOnce(&mut Self::Target) + 'static>(&self, data: &mut Self::Source, f: F);
-    /// Used to construct a closure to mutate
-    fn cascade<F: FnOnce(&mut Self::Target)>(&self, f: F) -> Self::Cascade;
+    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target;
+    fn put(&self, value: Self::Target) -> Box<dyn FnOnce(&mut Widget)>;
 }
-pub trait LazyLensExt: LazyLens {
-    fn get(&self, data: &Self::Source) -> Self::Target
-    where
-        Self::Target: Clone,
-    {
-        self.with(data, |x| x.clone())
-    }
 
-    fn then<M, L: LazyLens>(self, other: L) -> Then<Self, L>
-    where
-        Self: LazyLens<Target = M> + Sized,
-        L: LazyLens<Source = M>,
-    {
-        Then {
-            left: self,
-            right: other,
+/// Support operations on widgets. Implementors will store Id or &mut Widget internally
+pub trait LensDriver<L: FieldLens> {
+    // fn queue_op<F: FnOnce(&mut Widget)>(&self, op: F);
+    /// Gets field from widget
+    fn get(&self, lens: L) -> L::Target;
+    /// Mutate field of widget
+    fn put(&self, lens: L, value: L::Target);
+}
+
+/// used for looking up widgets globally
+pub struct WidgetLens<'a, D, L, I> {
+    id: I,
+    gui: &'a Gui<D>,
+    _marker: PhantomData<L>,
+}
+impl<'a, D, L, I> WidgetLens<'a, D, L, I> {
+    pub fn new(gui: &'a Gui<D>, id: I) -> Self {
+        Self {
+            id,
+            gui,
+            _marker: PhantomData,
         }
     }
 }
-impl<T: LazyLens> LazyLensExt for T {}
 
-//-------------
-// Widget lens
-//_____________
-
-// Gui -> Widget
-pub struct WidgetLens<D> {
-    id: Id,
-    // ops: Rc<RefCell<OperationService>>,
-    marker: PhantomData<D>,
+impl<'a, D: GuiDrawer, L: FieldLens, I: AsId<D>> LensDriver<L> for WidgetLens<'a, D, L, I> {
+    fn get(&self, lens: L) -> L::Target {
+        lens.get(self.gui.get(self.id.clone()))
+    }
+    fn put(&self, lens: L, value: L::Target) {
+        self.gui
+            .op_service
+            .borrow_mut()
+            .push(self.id.resolve(&self.gui).unwrap(), lens.put(value))
+    }
 }
-impl<D: GuiDrawer> WidgetLens<D> {
-    pub fn then<M, L>(self, other: L) -> GuiThen<D, L>
-    where
-        L: LazyLens<Source = Widget>,
-    {
-        GuiThen {
-            left: self,
-            right: other,
+
+/// used for immediate children
+/// only available internally (?)
+pub struct ChildLens<'a, L> {
+    child: &'a Widget,
+    op_service: Rc<RefCell<OperationCell>>,
+    _marker: PhantomData<L>,
+}
+impl<'a, L> ChildLens<'a, L> {
+    pub fn new(child: &'a Widget, op_service: Rc<RefCell<OperationCell>>) -> Self {
+        Self {
+            child,
+            op_service,
+            _marker: PhantomData,
         }
     }
 }
-impl<D: GuiDrawer> LazyLens for WidgetLens<D> {
-    type Source = Gui<D>;
-    type Target = Widget;
-    type Cascade = impl FnOnce(&mut Gui<D>);
-    // Idea: this can be used simply to `get` a value
-    fn with<V, F: FnOnce(&Widget) -> V>(&self, data: &Gui<D>, f: F) -> V {
-        f(
-            unimplemented!(), // TODO: fetch widget
-        )
+
+impl<'a, L: FieldLens> LensDriver<L> for ChildLens<'a, L> {
+    fn get(&self, lens: L) -> L::Target {
+        lens.get(&self.child)
     }
-
-    // Idea: this is used to push `f` to self.ops
-    // thus `f` is not called,
-    // and its return value is ignored
-    // PROBLEM: need to return the  V... impossible
-
-    fn cascade<F: FnOnce(&mut Self::Target)>(&self, f: F) -> Self::Cascade {
-        move |gui| gui.op_service.borrow_mut().push(self.id, f)
-    }
-}
-
-//--------
-// GuiThen
-//________
-
-pub struct GuiThen<D, L: LazyLens> {
-    left: WidgetLens<D>,
-    right: L,
-}
-impl<D, L> LazyLens for GuiThen<D, L>
-where
-    L: LazyLens<Source = Widget>,
-    D: GuiDrawer,
-{
-    type Source = Gui<D>;
-    type Target = L::Target;
-    fn with<V, F: FnOnce(&Self::Target) -> V>(&self, data: &Self::Source, f: F) -> V {
-        self.left.with(data, |b| self.right.with(b, f))
-    }
-    fn put<F: FnOnce(&mut Self::Target) + 'static>(&self, data: &mut Self::Source, f: F) {
-        // store the closure in
-
-        // TODO:
-        // so.. left is Gui -> Widget,
-        // right is Widget -> field
-        // won't really work in a nice way? Target is not part of `L1`. The fn needs to be boxed.
+    fn put(&self, lens: L, value: L::Target) {
+        self.op_service
+            .borrow_mut()
+            .push(self.child.get_id(), lens.put(value))
     }
 }

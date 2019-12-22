@@ -94,10 +94,10 @@ impl Interactive for DropdownButton {
                     let toggled = children[id].downcast_ref::<ToggleButton>().unwrap().state;
                     if toggled {
                         for (i, option) in self.options.iter().enumerate() {
-                            let id = children.insert(Box::new(Button::new()));
-                            Button::text.put(children.get_mut(id), option.name.clone());
-                            // .with_mut(children.get_mut(id), |text| *text = option.name.clone());
-                            // ^ TODO: option.name.clone()
+                            let mut btn = Button::new();
+                            btn.text = option.name.clone();
+                            let id = children.insert(Box::new());
+                            // Button::text.put(children.get_mut(id), option.name.clone());
                             self.opt_map.insert(id, i);
                         }
                     } else {

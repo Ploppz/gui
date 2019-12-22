@@ -18,12 +18,13 @@ use winput::Input;
 
 mod gui;
 mod lens;
-mod lens2;
+pub mod lens2;
 mod placement;
 mod widgets;
 
 pub use crate::gui::*;
 pub use lens::*;
+pub use lens2::LensDriver;
 pub use placement::*;
 pub use widgets::*;
 
@@ -38,7 +39,7 @@ macro_rules! children_proxy {
         ChildrenProxy {
             self_id: $self.id,
             children: &mut $self.children,
-            child_service: $self.child_service.clone(),
+            gui: $self.gui.clone(),
         }
     };
 }
@@ -64,7 +65,7 @@ pub struct Widget {
 
     pub config: WidgetConfig,
 
-    child_service: Rc<RefCell<ChildService>>,
+    gui: Rc<RefCell<GuiInternal>>,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -91,16 +92,12 @@ macro_rules! event {
 }
 
 impl Widget {
-    pub fn new(
-        id: Id,
-        mut widget: Box<dyn Interactive>,
-        child_service: Rc<RefCell<ChildService>>,
-    ) -> Widget {
+    pub fn new(id: Id, mut widget: Box<dyn Interactive>, gui: Rc<RefCell<GuiInternal>>) -> Widget {
         let mut children = IndexMap::new();
         let mut proxy = ChildrenProxy {
             self_id: id,
             children: &mut children,
-            child_service: child_service.clone(),
+            gui: gui.clone(),
         };
         let config = widget.init(&mut proxy);
         Widget {
@@ -110,7 +107,7 @@ impl Widget {
             rel_pos: (0.0, 0.0),
             size: (10.0, 10.0),
             config,
-            child_service,
+            gui,
 
             inside: false,
             pressed: false,
@@ -444,7 +441,7 @@ pub struct ChildrenProxy<'a> {
     self_id: Id,
     /// children of a widget
     children: &'a mut IndexMap<Id, Widget>,
-    child_service: Rc<RefCell<ChildService>>,
+    gui: Rc<RefCell<GuiInternal>>,
 }
 impl<'a> Deref for ChildrenProxy<'a> {
     type Target = IndexMap<Id, Widget>;
@@ -454,23 +451,23 @@ impl<'a> Deref for ChildrenProxy<'a> {
 }
 impl<'a> ChildrenProxy<'a> {
     pub fn insert(&mut self, widget: Box<dyn Interactive>) -> Id {
-        let id = self.child_service.borrow_mut().new_id();
+        let id = self.gui.borrow_mut().new_id();
 
         // Update paths
         let path = if self.self_id == 1 {
             vec![]
         } else {
-            let mut p = self.child_service.borrow().paths[&self.self_id].clone();
+            let mut p = self.gui.borrow().paths[&self.self_id].clone();
             p.push(self.self_id);
             p
         };
-        self.child_service.borrow_mut().paths.insert(id, path);
-        let widget = Widget::new(id, widget, self.child_service.clone());
+        self.gui.borrow_mut().paths.insert(id, path);
+        let widget = Widget::new(id, widget, self.gui.clone());
         self.children.insert(id, widget);
         id
     }
     pub fn remove(&mut self, id: Id) {
-        self.child_service.borrow_mut().remove(id);
+        self.gui.borrow_mut().remove(id);
         // self.children.shift_remove(&id)
     }
     pub fn get_mut(&mut self, id: Id) -> &mut Widget {
@@ -495,13 +492,18 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     fn init(&mut self, _children: &mut ChildrenProxy) -> WidgetConfig {
         WidgetConfig::default()
     }
-    /// Optional additional logic specific to this widget type, with events from children.
+    /// Optional additional logic specific to this widget type, called in the bottom-up phase, and
+    /// thus `_events` is the accumulated events of all descendants of `self`.
+    /// `_children` is a proxy to the `Widget` which owns `self`, and `_operations` enables delayed
+    /// mutations to widgets (the only way to mutate widgets).
+    ///
     /// Returns events resulting from this update. For example, if children are added, it should
     /// return Change events for those children.
     fn update(
         &mut self,
         _events: &[(Id, WidgetEvent)],
         _children: &mut ChildrenProxy,
+        _operations: Rc<RefCell<GuiInternal>>, // TODO: redundant GuiInternal
     ) -> Vec<(Id, WidgetEvent)> {
         Vec::new()
     }

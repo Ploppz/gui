@@ -3,7 +3,7 @@ use crate::*;
 use indexmap::IndexMap;
 use slog::{info, Logger};
 mod drawer;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 pub use drawer::*;
 
@@ -33,14 +33,23 @@ impl<D: GuiDrawer> AsId<D> for &str {
     }
 }
 
-/// Just some fields needed to create widgets..
-#[derive(Debug, Clone)]
-pub struct ChildService {
+/// Access to `Gui`'s internals enabling actions suchs as adding, removing, retrieving and
+/// belatedly mutating widgets.
+pub struct GuiInternal {
     pub paths: IndexMap<Id, Vec<Id>>,
     id_cnt: usize,
     to_remove: Vec<Id>,
+    operations: Vec<(Id, Box<dyn FnOnce(&mut Widget)>)>,
 }
-impl ChildService {
+impl GuiInternal {
+    pub fn new() -> Self {
+        GuiInternal {
+            paths: IndexMap::new(),
+            id_cnt: ROOT,
+            to_remove: Vec::new(),
+            operations: Vec::new(),
+        }
+    }
     pub fn new_id(&mut self) -> Id {
         self.id_cnt += 1;
         self.id_cnt
@@ -48,36 +57,34 @@ impl ChildService {
     pub fn remove(&mut self, id: Id) {
         self.to_remove.push(id);
     }
-}
 
-pub struct OperationService {
-    operations: Vec<(Id, Box<dyn FnOnce(&mut Widget)>)>,
+    pub fn push_op<O: FnOnce(&mut Widget) + 'static>(&mut self, id: Id, op: O) {
+        self.operations.push((id, Box::new(op)));
+    }
 }
-impl OperationService {
-    pub fn push<O: FnOnce(&mut Widget) + 'static>(&mut self, id: Id, op: O) {
-        self.operations.push(Box::new(op));
+impl fmt::Debug for GuiInternal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "GuiInternal {{ paths: {:?}, id_cnt: {:?}, to_remove: {:?}, operations.len(): {} }}",
+            self.paths,
+            self.id_cnt,
+            self.to_remove,
+            self.operations.len()
+        )
     }
 }
 
 #[derive(Debug)]
-pub struct Gui<D: GuiDrawer> {
+pub struct Gui<D> {
     pub root: Widget,
     screen: (f32, f32),
     drawer: D,
     pub aliases: IndexMap<String, Id>,
-    pub child_service: Rc<RefCell<ChildService>>,
-    /// Allows operations on widgets to be added from anywhere (in the same thread)
-    pub op_service: Rc<RefCell<OperationService>>,
+    pub internal: Rc<RefCell<GuiInternal>>,
     /// Events collected outside update function, consumed when update is called
     events: Vec<(Id, WidgetEvent)>,
 }
-
-/// Provides access to a widget
-pub struct WidgetProxy {
-    op_service: Rc<RefCell<OperationService>>,
-}
-// WidgetLens resolves Gui -> WidgetProxy.
-// From there, you should chain it with e.g. `Button::text`, which goes WidgetProxy
 
 pub struct WidgetLens<D, I> {
     id: I,
@@ -104,25 +111,22 @@ impl<D: GuiDrawer, I: AsId<D>> Lens<Gui<D>, Widget> for WidgetLens<D, I> {
 
 impl<D: GuiDrawer> Gui<D> {
     pub fn new(drawer: D) -> Gui<D> {
-        let child_service = Rc::new(RefCell::new(ChildService {
-            paths: IndexMap::new(),
-            id_cnt: ROOT,
-            to_remove: Vec::new(),
-        }));
-        let mut root = Widget::new(ROOT, Box::new(Container::new()), child_service.clone());
+        let internal = Rc::new(RefCell::new(GuiInternal::new()));
+        let mut root = Widget::new(ROOT, Box::new(Container::new()), internal.clone());
         root.config = root.config.placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
             drawer,
             screen: (0.0, 0.0),
-            child_service: child_service,
+            internal,
+            op_service: Rc::new(RefCell::new(OperationCell::new())),
             events: Vec::new(),
             aliases: IndexMap::new(),
         }
     }
 
     /// # Removal of widgets
-    /// Removal of widgets is done through the `ChildService` struct given in the update function
+    /// Removal of widgets is done through the `GuiInternal` struct given in the update function
     /// of widgets. This only maintains a list of `Id`s of widget to be deleted. At the very start of
     /// `Gui::update`, these widgets are deleted. Thus, for all `Id`s found in the events returned by
     /// `Gui::update`, it is guaranteed that the widget exists - until the next call to
@@ -138,8 +142,7 @@ impl<D: GuiDrawer> Gui<D> {
         self.root.config.set_size(sw, sh);
 
         // Delete widgets that were marked for deletion last frame
-        let to_remove =
-            std::mem::replace(&mut self.child_service.borrow_mut().to_remove, Vec::new());
+        let to_remove = std::mem::replace(&mut self.internal.borrow_mut().to_remove, Vec::new());
         for id_to_remove in to_remove {
             let parent_id = self.parent(id_to_remove);
             let parent = self.get_mut(parent_id);
@@ -176,18 +179,18 @@ impl<D: GuiDrawer> Gui<D> {
 
         // Update parent relations
         let mut old_paths =
-            std::mem::replace(&mut self.child_service.borrow_mut().paths, IndexMap::new());
+            std::mem::replace(&mut self.internal.borrow_mut().paths, IndexMap::new());
         update_paths_recurse(
             vec![],
             &mut self.root,
             &mut old_paths,
-            &mut self.child_service.borrow_mut().paths,
+            &mut self.internal.borrow_mut().paths,
             &mut events,
         );
-        // TODO remove old_paths - not needed (?) (removal is now marked through ChildService
+        // TODO remove old_paths - not needed (?) (removal is now marked through GuiInternal
 
         // Signal removal to renderer
-        for to_remove_id in &self.child_service.borrow().to_remove {
+        for to_remove_id in &self.internal.borrow().to_remove {
             for descendant in self.get(*to_remove_id).recursive_children_iter() {
                 events.push((descendant.get_id(), WidgetEvent::Removed));
             }
@@ -216,13 +219,13 @@ impl<D: GuiDrawer> Gui<D> {
         widget: Box<dyn Interactive>,
     ) -> Option<Id> {
         if let Some(parent_id) = parent_id.resolve(self) {
-            let child_service = self.child_service.clone();
+            let internal = self.internal.clone();
             // Create Widget and insert
             if let Some(parent) = self.try_get_mut(parent_id) {
                 let mut children = ChildrenProxy {
                     self_id: parent_id,
                     children: &mut parent.children,
-                    child_service,
+                    internal,
                 };
                 Some(children.insert(widget))
             // TODO ???
@@ -250,7 +253,7 @@ impl<D: GuiDrawer> Gui<D> {
             if id == ROOT {
                 return Some(&self.root);
             }
-            if let Some(path) = self.child_service.borrow().paths.get(&id) {
+            if let Some(path) = self.internal.borrow().paths.get(&id) {
                 let mut current = &self.root;
                 for id in path {
                     if let Some(child) = current.children.get(id) {
@@ -277,7 +280,7 @@ impl<D: GuiDrawer> Gui<D> {
         self.try_parent(id).unwrap()
     }
     pub fn try_parent(&self, id: Id) -> Option<Id> {
-        self.child_service
+        self.internal
             .borrow()
             .paths
             .get(&id)
@@ -293,7 +296,7 @@ impl<D: GuiDrawer> Gui<D> {
             if id == ROOT {
                 return Some(&mut self.root);
             }
-            if let Some(path) = self.child_service.borrow().paths.get(&id) {
+            if let Some(path) = self.internal.borrow().paths.get(&id) {
                 let mut current = &mut self.root;
                 for id in path {
                     if let Some(child) = current.children.get_mut(id) {
