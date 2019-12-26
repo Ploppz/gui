@@ -69,32 +69,28 @@ impl TestFixture {
         }
     }
     /// Calls update on gui
-    pub fn update(&mut self) -> (Vec<(Id, WidgetEvent)>, Capture) {
+    pub fn update(&mut self) -> (Vec<Event>, Capture) {
         let log = Logger::root(Discard, o!());
         let (events, capture) = self.gui.update(&self.input, log, &mut ());
         println!("[TestFixture][update] events = [");
         for event in events.iter() {
-            let w = self.gui.get(event.0);
-            print!("\t{:?}", event.1);
-            match event.1 {
-                WidgetEvent::ChangePos => print!("\tpos={:?}", w.pos),
-                WidgetEvent::ChangeSize => print!("\tsize={:?}", w.size),
-                _ => (),
+            let w = self.gui.get(event.id);
+            print!("\t{:?}", event.kind);
+            if let EventKind::Change { field } = event.kind {
+                if field.is_pos() {
+                    print!("\tpos={:?}", w.pos);
+                } else if field.is_size() {
+                    print!("\tsize={:?}", w.size);
+                }
             }
-            println!("\tid={}", event.0);
+            println!("\tid={}", event.id);
         }
         println!("]\n");
         (events, capture)
     }
     /// Click (press and release) a widget. Returns (events, capture) after pressing and after
     /// releasing
-    pub fn click_widget(
-        &mut self,
-        id: &str,
-    ) -> (
-        (Vec<(Id, WidgetEvent)>, Capture),
-        (Vec<(Id, WidgetEvent)>, Capture),
-    ) {
+    pub fn click_widget(&mut self, id: &str) -> ((Vec<Event>, Capture), (Vec<Event>, Capture)) {
         let pos = self.expected[id].pos;
         let size = self.expected[id].size;
         let mouse_pos = (pos.0 + size.0 / 2.0, pos.1 + size.1 / 2.0);
@@ -174,8 +170,8 @@ macro_rules! assert_events {
         let expected = $expected;
         let events_freeze = $events.clone();
         for expected_event in expected.iter() {
-            if let Some(idx) = events.iter().enumerate().find_map(|(i, (_, e))| {
-                if *e == *expected_event {
+            if let Some(idx) = events.iter().enumerate().find_map(|(i, event)| {
+                if event.kind == *expected_event {
                     Some(i)
                 } else {
                     None

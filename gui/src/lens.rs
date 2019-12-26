@@ -16,7 +16,6 @@
 
 use std::marker::PhantomData;
 use std::ops;
-use std::sync::Arc;
 
 /// A lens is a datatype that gives access to a part of a larger
 /// data structure.

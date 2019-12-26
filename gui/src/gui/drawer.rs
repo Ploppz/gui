@@ -18,7 +18,7 @@ pub trait GuiDrawer: Sized {
     fn update(
         &self,
         gui: &Gui<Self>,
-        events: &[(Id, WidgetEvent)],
+        events: &[Event],
         log: Logger,
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
@@ -40,13 +40,13 @@ impl GuiDrawer for NoDrawer {
     fn update(
         &self,
         _gui: &Gui<Self>,
-        _events: &[(Id, WidgetEvent)],
+        _events: &[Event],
         _log: Logger,
         _ctx: &mut Self::Context,
     ) -> Vec<WidgetOp> {
         Vec::new()
     }
-    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> (f32, f32) {
+    fn text_size(&self, _text: &str, _ctx: &mut Self::Context) -> (f32, f32) {
         (0.0, 0.0)
     }
 }

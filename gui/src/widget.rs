@@ -1,36 +1,8 @@
-#![feature(type_alias_impl_trait)]
-//! # Gui
-//!
-//! ## Layout
-//! The *main axis* is the axis along which widgets are stacked. The other axis is called the
-//! *cross axis*.
-//!
-#[macro_use]
-extern crate mopa;
-#[macro_use]
-extern crate derive_deref;
-
+use crate::*;
 use indexmap::IndexMap;
-use mopa::Any;
 use slog::Logger;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 use winput::Input;
-
-mod gui;
-mod lens;
-pub mod lens2;
-mod placement;
-mod widgets;
-
-pub use crate::gui::*;
-pub use lens::*;
-pub use lens2::LensDriver;
-pub use placement::*;
-pub use widgets::*;
-
-pub mod test_common;
-
-pub type Id = usize;
 
 /// Macro is needed rather than a member function, in order to preserve borrow information:
 /// so that the compiler knows that only `self.children` is borrowed.
@@ -44,12 +16,42 @@ macro_rules! children_proxy {
     };
 }
 
+// TODO: just pos, rel_pos, size initially
+
+// TODO(PosLens): should be possible to read the value indeed but not set it
+// To set a value one should go through `config`!
+// Perhaps `get_mut` somehow has to do that? Idk how.
+pub struct PosLens;
+impl FieldLens for PosLens {
+    type Target = (f32, f32);
+    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
+        &source.pos
+    }
+    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
+        &mut source.pos
+    }
+}
+pub struct SizeLens;
+impl FieldLens for SizeLens {
+    type Target = (f32, f32);
+    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
+        &source.pos
+    }
+    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
+        &mut source.pos
+    }
+}
+impl Widget {
+    pub const size: SizeLens = SizeLens;
+    pub const pos: PosLens = PosLens;
+}
+
 #[derive(Deref, DerefMut, Debug)]
 pub struct Widget {
     #[deref_target]
     pub inner: Box<dyn Interactive>,
     /// Children of this node in the widget tree.
-    children: IndexMap<Id, Widget>,
+    pub(crate) children: IndexMap<Id, Widget>,
     /// Current absolute position as calculated by layout algorithm.
     /// Any mutation to `pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
@@ -72,23 +74,11 @@ pub struct Widget {
     /// Keeps track of mouse press state in order to generate the right WidgetEvents
     pressed: bool,
 
-    /// 'Buffer' - when `true` it is set to `false` by the parent, and the
-    changed: bool,
-
     /// For internal use; mirrors the id that is the key in the HashMap that this Widget is
     /// likely a part of.
     /// NOTE: It's important to always ensure that `self.id` corresponds to the ID as registered in
     /// the gui system.
     id: Id,
-}
-macro_rules! event {
-    ($event:expr, ($widget:expr, $events:expr)) => {{
-        let change = $widget.inner.handle_event($event);
-        if change {
-            $events.push(($widget.id.clone(), WidgetEvent::Change));
-        }
-        $events.push(($widget.id.clone(), $event));
-    }};
 }
 
 impl Widget {
@@ -111,7 +101,6 @@ impl Widget {
 
             inside: false,
             pressed: false,
-            changed: false,
             id,
         }
     }
@@ -134,67 +123,27 @@ impl Widget {
     pub fn pressed(&self) -> bool {
         self.pressed
     }
-    /// Mark that some internal state has changed in this Widget.
-    /// For use when an application itself wants to change state of a Widget - for example toggle a
-    /// button in response to a key press. A `Change` event has to be registered so that the drawer
-    /// knows to redraw the widget.
-    pub fn mark_change(&mut self) {
-        self.changed = true;
-    }
-    /// Update this widget tree recursively, returning accumulated events from all nodes.
-    /// Will perform one bottom-up pass and one top-down pass.
-    pub fn update(
-        &mut self,
-        input: &Input,
-        sw: f32,
-        sh: f32,
-        mouse: (f32, f32),
-        log: Logger,
-    ) -> (Vec<(Id, WidgetEvent)>, Capture) {
-        let (mut e, c) = self.update_bottom_up(input, sw, sh, mouse, log);
-        self.update_top_down(&mut e);
-        (e, c)
-    }
     /// Main update work happens here.
     /// NOTE: Due to recursion order, during update, position of `self` is not yet known.
     /// That's why calculating the absolute positions of widgets has to happen in a second pass.
-    fn update_bottom_up(
+    pub(crate) fn update_bottom_up(
         &mut self,
         input: &Input,
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
+        events: &mut Vec<Event>,
         log: Logger,
-    ) -> (Vec<(Id, WidgetEvent)>, Capture) {
-        let mut events = Vec::new();
+    ) -> Capture {
         let mut capture = Capture::default();
 
+        let mut local_events = Vec::new();
         // Update children
         for child in self.children.values_mut() {
-            let (child_events, child_capture) =
-                child.update_bottom_up(input, sw, sh, mouse, log.clone());
+            let child_capture =
+                child.update_bottom_up(input, sw, sh, mouse, &mut local_events, log.clone());
             capture |= child_capture;
-            events.extend(child_events.into_iter());
         }
-        // Execute widget-specific logic
-        let events2 = self.inner.update(&events, &mut children_proxy!(self));
-        // If there are any events pertaining any children, we need to recurse children again
-        let re_recurse = events2.iter().any(|(id, _)| *id != self.id);
-        if re_recurse {
-            // TODO code duplication
-            for child in self.children.values_mut() {
-                let (child_events, child_capture) =
-                    child.update_bottom_up(input, sw, sh, mouse, log.clone());
-                capture |= child_capture;
-                events.extend(child_events.into_iter());
-            }
-        }
-
-        events.extend(events2);
-
-        // Update positions of children (and possibly size of self)
-        let pos_events = self.layout_alg(log.clone());
-        events.extend(pos_events.into_iter());
 
         if !capture.mouse {
             let now_inside = self.inside(self.pos, self.size, mouse);
@@ -202,9 +151,9 @@ impl Widget {
             self.inside = now_inside;
 
             if now_inside && !prev_inside {
-                event!(WidgetEvent::Hover, (self, events));
+                local_events.push(Event::new(self.id, EventKind::Hover));
             } else if prev_inside && !now_inside {
-                event!(WidgetEvent::Unhover, (self, events));
+                local_events.push(Event::new(self.id, EventKind::Unhover));
             }
 
             if now_inside {
@@ -213,43 +162,53 @@ impl Widget {
 
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
                 self.pressed = true;
-                event!(WidgetEvent::Press, (self, events));
+                local_events.push(Event::new(self.id, EventKind::Press));
             }
             if self.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
                 self.pressed = false;
-                event!(WidgetEvent::Release, (self, events));
+                local_events.push(Event::new(self.id, EventKind::Release));
             }
         }
+        // Execute widget-specific logic
+        self.inner.update(
+            self.id,
+            &local_events,
+            &mut children_proxy!(self),
+            &mut events,
+        );
 
-        if self.changed {
-            events.push((self.id.clone(), WidgetEvent::Change));
-            self.changed = false;
-        }
-
-        (events, capture)
+        capture
     }
     /// Calculates absolute positions
-    fn update_top_down(&mut self, events: &mut Vec<(Id, WidgetEvent)>) {
+    pub(crate) fn update_top_down(&mut self, events: &mut Vec<Event>) {
         let pos = self.pos;
         for child in self.children.values_mut() {
             let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
             if new_pos != child.pos {
-                event!(WidgetEvent::ChangePos, (child, events));
+                events.push(Event::change(self.id, Widget::pos));
                 child.pos = new_pos;
             }
             child.update_top_down(events);
         }
     }
 
-    /// Not recursive - only updates the position of children.
-    /// (and updates size of `self` if applicable)
-    fn layout_alg(&mut self, _log: Logger) -> Vec<(Id, WidgetEvent)> {
+    /// Recursively updates the position of children, and updates size of `self` if applicable.
+    /// Additionally, updates sizes of text fields with the help of the `GuiDrawer`
+    pub(crate) fn layout_alg<D: GuiDrawer>(
+        &mut self,
+        events: &mut Vec<Event>,
+        drawer: &D,
+        ctx: &mut D::Context,
+    ) {
+        for child in self.children.values_mut() {
+            // Recurse
+            child.layout_alg(events, drawer, ctx);
+        }
+
         // println!("Positioning Parent [{}]", self.id);
         if self.config.layout_wrap {
             unimplemented!()
         }
-        // let id = self.id.clone();
-        let mut events = Vec::new();
         let size = self.size;
         let layout_align = self.config.layout_align;
         let layout_main_margin = self.config.layout_main_margin;
@@ -307,6 +266,11 @@ impl Widget {
 
         let mut new_size = self.size;
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
+
+        /* TODO
+        self.update_size_if_text_field(drawer, ctx);
+        */
+
         let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
         match size_hint[main_axis] {
             SizeHint::Minimize => new_size[main_axis] = layout_progress,
@@ -322,11 +286,26 @@ impl Widget {
         }
         if new_size != self.size {
             self.size = new_size;
-            event!(WidgetEvent::ChangeSize, (self, events));
+            events.push(Event::change(self.id, Widget::size));
         }
-
-        events
     }
+    /* TODO
+    /// Change size (to external) if self is a text field whose text has changed.
+    fn update_size_if_text_field<D: GuiDrawer>(&mut self, drawer: &D, ctx: &mut D::Context) {
+        if self.changed {
+            // TODO would be convenient with lenses here, if they return `Result`
+            if child.inner.is::<TextField>() {
+                let text = &child
+                    .inner
+                    .downcast_ref::<TextField>()
+                    .unwrap()
+                    .text;
+                let text_size = drawer.text_size(text, ctx);
+                self.config.set_size(text_size.0, text_size.1);
+            }
+        }
+    }
+    */
     pub fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
             self.children.values().chain(
@@ -441,7 +420,7 @@ pub struct ChildrenProxy<'a> {
     self_id: Id,
     /// children of a widget
     children: &'a mut IndexMap<Id, Widget>,
-    gui: Rc<RefCell<GuiInternal>>,
+    pub gui: Rc<RefCell<GuiInternal>>,
 }
 impl<'a> Deref for ChildrenProxy<'a> {
     type Target = IndexMap<Id, Widget>;
@@ -475,99 +454,5 @@ impl<'a> ChildrenProxy<'a> {
     }
     pub fn values_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
         self.children.values_mut()
-    }
-}
-
-// TODO move to its own module. Problem with MOPA
-/// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
-/// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
-/// implement.
-pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
-    /// Exists to make it possible for a widget to create children - Gui and Widget
-    /// are required for that.
-    /// `init` will be called once while the widget is being added to Gui.
-    /// `children` provides an interface to add/delete/get children of this widget.
-    /// That is, it is basically a wrapper around the owning Widget's `children`
-
-    fn init(&mut self, _children: &mut ChildrenProxy) -> WidgetConfig {
-        WidgetConfig::default()
-    }
-    /// Optional additional logic specific to this widget type, called in the bottom-up phase, and
-    /// thus `_events` is the accumulated events of all descendants of `self`.
-    /// `_children` is a proxy to the `Widget` which owns `self`, and `_operations` enables delayed
-    /// mutations to widgets (the only way to mutate widgets).
-    ///
-    /// Returns events resulting from this update. For example, if children are added, it should
-    /// return Change events for those children.
-    fn update(
-        &mut self,
-        _events: &[(Id, WidgetEvent)],
-        _children: &mut ChildrenProxy,
-        _operations: Rc<RefCell<GuiInternal>>, // TODO: redundant GuiInternal
-    ) -> Vec<(Id, WidgetEvent)> {
-        Vec::new()
-    }
-    /// Returns true if some internal state has changed in this widget (not in children)
-    fn handle_event(&mut self, event: WidgetEvent) -> bool;
-
-    /// Returns information whether this widget will stop mouse events and state
-    /// from reaching other parts of the application.
-    fn captures(&self) -> Capture;
-
-    /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
-    /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
-    /// is the very center of the widget. However, this is configurable in case a finer shape is
-    /// desired (e.g. round things).
-    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
-        let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
-        let (top, bot, right, left) = (y, y + h, x + w, x);
-        mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
-    }
-}
-mopafy!(Interactive);
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum WidgetEvent {
-    Press,
-    Release,
-    Hover,
-    Unhover,
-    ChangePos,
-    ChangeSize,
-    /// Change to any internal state.
-    /// Also issued upon first discovery of widget.
-    Change,
-    // TODO: perhaps something to notify that position has changed
-    Removed,
-}
-
-#[derive(Default, Debug, Copy, Clone)]
-pub struct Capture {
-    pub mouse: bool,
-    pub keyboard: bool,
-}
-impl std::ops::BitOrAssign for Capture {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.mouse |= rhs.mouse;
-        self.keyboard |= rhs.keyboard;
-    }
-}
-
-impl<T> std::ops::Index<Axis> for (T, T) {
-    type Output = T;
-    fn index(&self, idx: Axis) -> &T {
-        match idx {
-            Axis::X => &self.0,
-            Axis::Y => &self.1,
-        }
-    }
-}
-
-impl<T> std::ops::IndexMut<Axis> for (T, T) {
-    fn index_mut(&mut self, idx: Axis) -> &mut T {
-        match idx {
-            Axis::X => &mut self.0,
-            Axis::Y => &mut self.1,
-        }
     }
 }
