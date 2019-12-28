@@ -3,7 +3,7 @@ use gui_derive::Lenses;
 use indexmap::IndexMap;
 
 #[derive(Debug, Clone, PartialEq)]
-struct DropdownOption {
+pub struct DropdownOption {
     pub name: String,
     pub value: String,
 }
@@ -50,14 +50,19 @@ impl Interactive for DropdownButton {
     }
     fn update(
         &mut self,
-        id: Id,
+        _id: Id,
         local_events: &[Event],
         children: &mut ChildrenProxy,
         events: &mut Vec<Event>,
     ) {
         // Always ensure that all children have the same width
 
-        for Event { id, kind } in events {
+        for Event { id, kind } in local_events
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<_>>()
+            .iter()
+        {
             // Toggle dropdown list
             if *id == self.main_button_id {
                 if kind.is_change(ToggleButton::state) {

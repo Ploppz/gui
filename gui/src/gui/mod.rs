@@ -188,11 +188,7 @@ impl<D: GuiDrawer> Gui<D> {
             let internal = self.internal.clone();
             // Create Widget and insert
             if let Some(parent) = self.try_get_mut(parent_id) {
-                let mut children = ChildrenProxy {
-                    self_id: parent_id,
-                    children: &mut parent.children,
-                    gui: internal,
-                };
+                let mut children = ChildrenProxy::new(parent_id, &mut parent.children, internal);
                 Some(children.insert(widget))
             // TODO ???
             // self.events.push(Event::new(id, EventKind::Change));
@@ -264,6 +260,7 @@ impl<D: GuiDrawer> Gui<D> {
             }
             if let Some(path) = self.internal.borrow().paths.get(&id) {
                 let mut current = &mut self.root;
+                let current_id = current.get_id();
                 for id in path {
                     if let Some(child) = current.children.get_mut(id) {
                         current = child;
@@ -271,9 +268,7 @@ impl<D: GuiDrawer> Gui<D> {
                         panic!(
                             "Incorrect path (gui programming error?).
                             {} not a child of {} on path {:?}",
-                            id,
-                            current.get_id(),
-                            path
+                            id, current_id, path
                         );
                     }
                 }

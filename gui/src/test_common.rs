@@ -76,7 +76,7 @@ impl TestFixture {
         for event in events.iter() {
             let w = self.gui.get(event.id);
             print!("\t{:?}", event.kind);
-            if let EventKind::Change { field } = event.kind {
+            if let EventKind::Change { ref field } = event.kind {
                 if field.is_pos() {
                     print!("\tpos={:?}", w.pos);
                 } else if field.is_size() {

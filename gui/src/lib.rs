@@ -55,8 +55,8 @@ impl FieldId {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Event {
-    id: Id,
-    kind: EventKind,
+    pub id: Id,
+    pub kind: EventKind,
 }
 impl Event {
     pub fn new(id: Id, kind: EventKind) -> Event {
@@ -65,9 +65,7 @@ impl Event {
     pub fn change<T: FieldLens + 'static>(id: Id, t: T) -> Event {
         Event {
             id,
-            kind: EventKind::Change {
-                field: FieldId::of::<T>(t),
-            },
+            kind: EventKind::change(t),
         }
     }
 }
@@ -87,6 +85,11 @@ pub enum EventKind {
     Removed,
 }
 impl EventKind {
+    pub fn change<T: FieldLens + 'static>(t: T) -> EventKind {
+        EventKind::Change {
+            field: FieldId::of::<T>(t),
+        }
+    }
     pub fn is_change<T: FieldLens>(&self, t: T) -> bool {
         if let EventKind::Change { field } = self {
             return field.is(t);

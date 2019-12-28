@@ -16,16 +16,16 @@ pub trait LensDriver {
     /// Gets field from widget
     fn get<L: FieldLens>(&self, lens: L) -> &L::Target;
     /// Mutate field of widget
-    fn put<L: FieldLens>(&self, lens: L, value: L::Target) -> &Self;
+    fn put<L: FieldLens>(&mut self, lens: L, value: L::Target) -> &mut Self;
 }
 
 /// used for looking up widgets globally
 pub struct WidgetLens<'a, D, I> {
     id: I,
-    gui: &'a Gui<D>,
+    gui: &'a mut Gui<D>,
 }
 impl<'a, D, I> WidgetLens<'a, D, I> {
-    pub fn new(gui: &'a Gui<D>, id: I) -> Self {
+    pub fn new(gui: &'a mut Gui<D>, id: I) -> Self {
         Self { id, gui }
     }
 }
@@ -34,7 +34,7 @@ impl<'a, D: GuiDrawer, I: AsId<D>> LensDriver for WidgetLens<'a, D, I> {
     fn get<L: FieldLens>(&self, lens: L) -> &L::Target {
         lens.get(self.gui.get(self.id.clone()))
     }
-    fn put<L: FieldLens>(&self, lens: L, value: L::Target) -> &Self {
+    fn put<L: FieldLens>(&mut self, lens: L, value: L::Target) -> &mut Self {
         let target = lens.get_mut(self.gui.get_mut(self.id.clone()));
         let equal = *target == value;
         if !equal {
@@ -64,7 +64,7 @@ impl<'a, 'b> LensDriver for InternalLens<'a, 'b> {
     fn get<L: FieldLens>(&self, lens: L) -> &L::Target {
         lens.get(&self.widget)
     }
-    fn put<L: FieldLens>(&self, lens: L, value: L::Target) -> &Self {
+    fn put<L: FieldLens>(&mut self, lens: L, value: L::Target) -> &mut Self {
         let target = lens.get_mut(self.widget);
         let equal = *target == value;
         if !equal {

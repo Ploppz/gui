@@ -41,6 +41,7 @@ impl FieldLens for SizeLens {
         &mut source.pos
     }
 }
+#[allow(non_upper_case_globals)]
 impl Widget {
     pub const size: SizeLens = SizeLens;
     pub const pos: PosLens = PosLens;
@@ -111,6 +112,18 @@ impl Widget {
     pub fn children(&self) -> &IndexMap<Id, Widget> {
         &self.children
     }
+    /// Get iterator over mutable children
+    pub fn children_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
+        self.children.values_mut()
+    }
+    pub fn insert_child(&mut self, widget: Box<dyn Interactive>) -> Id {
+        self.children_proxy().insert(widget)
+    }
+    pub fn remove_child(&mut self, id: Id) {
+        self.children_proxy().remove(id)
+    }
+    /// Needed only when access to children are needed without access to the `Widget`: for example
+    /// in `Interactive::update` and `Interactive::init`, which cannot possibly know the `Widget`
     pub fn children_proxy(&mut self) -> ChildrenProxy {
         children_proxy!(self)
     }
@@ -124,6 +137,7 @@ impl Widget {
         self.pressed
     }
     /// Main update work happens here.
+    /// Bottom-up means postfix
     /// NOTE: Due to recursion order, during update, position of `self` is not yet known.
     /// That's why calculating the absolute positions of widgets has to happen in a second pass.
     pub(crate) fn update_bottom_up(
@@ -137,6 +151,8 @@ impl Widget {
     ) -> Capture {
         let mut capture = Capture::default();
 
+        // Buffer all events of all descendants and self in `local_events` - added to the `events`
+        // pool at the very end. NOTE: this can be optimized heavily!
         let mut local_events = Vec::new();
         // Update children
         for child in self.children.values_mut() {
@@ -170,12 +186,9 @@ impl Widget {
             }
         }
         // Execute widget-specific logic
-        self.inner.update(
-            self.id,
-            &local_events,
-            &mut children_proxy!(self),
-            &mut events,
-        );
+        self.inner
+            .update(self.id, &local_events, &mut children_proxy!(self), events);
+        events.extend(local_events);
 
         capture
     }
@@ -429,6 +442,17 @@ impl<'a> Deref for ChildrenProxy<'a> {
     }
 }
 impl<'a> ChildrenProxy<'a> {
+    pub fn new(
+        self_id: Id,
+        children: &'a mut IndexMap<Id, Widget>,
+        gui: Rc<RefCell<GuiInternal>>,
+    ) -> Self {
+        Self {
+            self_id,
+            children,
+            gui,
+        }
+    }
     pub fn insert(&mut self, widget: Box<dyn Interactive>) -> Id {
         let id = self.gui.borrow_mut().new_id();
 

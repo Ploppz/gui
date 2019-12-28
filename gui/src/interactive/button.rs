@@ -27,20 +27,12 @@ impl Interactive for Button {
 
 pub struct ToggleButtonTextLens;
 impl FieldLens for ToggleButtonTextLens {
-    type Target = String;
+    type Target = Widget;
     fn get<'a>(&self, w: &'a Widget) -> &'a Self::Target {
-        &w.children()
-            .values()
-            .next()
-            .unwrap()
-            .downcast_ref::<TextField>()
-            .unwrap()
-            .text
+        &w.children().values().next().unwrap()
     }
     fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Self::Target {
-        let mut proxy = w.children_proxy();
-        let text_widget = proxy.values_mut().next().unwrap();
-        &mut text_widget.downcast_mut::<TextField>().unwrap().text
+        w.children_mut().next().unwrap()
     }
 }
 

@@ -22,11 +22,11 @@ fn test_button_click_capture_and_events() {
 
     let relevant_events = press_events
         .into_iter()
-        .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0"))
+        .filter(|event| fix.gui.id_eq(event.id, "ToggleButton 0"))
         .chain(
             release_events
                 .into_iter()
-                .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0")),
+                .filter(|event| fix.gui.id_eq(event.id, "ToggleButton 0")),
         )
         .collect::<Vec<_>>();
     assert!(press_capture.mouse);
@@ -35,10 +35,10 @@ fn test_button_click_capture_and_events() {
     assert_events!(
         relevant_events,
         vec![
-            WidgetEvent::Hover,
-            WidgetEvent::Press,
-            WidgetEvent::Change,
-            WidgetEvent::Release,
+            EventKind::Hover,
+            EventKind::Press,
+            EventKind::change(ToggleButton::state),
+            EventKind::Release,
         ]
     );
 }
@@ -49,19 +49,19 @@ fn test_mark_change() {
     fix.update();
 
     // Manually change the toggle button
-
-    let button = fix.gui.get_mut("ToggleButton 0");
-    button.mark_change();
-    button.downcast_mut::<ToggleButton>().unwrap().state = true;
+    WidgetLens::new(&mut fix.gui, "ToggleButton 0").put(ToggleButton::state, true);
 
     let (events, capture) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| fix.gui.id_eq(event.0, "ToggleButton 0"))
+        .filter(|event| fix.gui.id_eq(event.id, "ToggleButton 0"))
         .collect::<Vec<_>>();
     println!("{:?}", relevant_events);
     assert_eq!(relevant_events.len(), 1);
-    assert_events!(relevant_events, vec![WidgetEvent::Change,]);
+    assert_events!(
+        relevant_events,
+        vec![EventKind::change(ToggleButton::state),]
+    );
     // Extra test:
     assert!(!capture.mouse);
 }
@@ -72,11 +72,14 @@ fn test_gui_change_pos() {
     let (events, _) = fix.update();
     let relevant_events = events
         .into_iter()
-        .filter(|event| fix.gui.id_eq(event.0, "Button 1"))
+        .filter(|event| fix.gui.id_eq(event.id, "Button 1"))
         .collect::<Vec<_>>();
     assert_events!(
         relevant_events,
-        vec![WidgetEvent::ChangePos, WidgetEvent::ChangeSize]
+        vec![
+            EventKind::change(Widget::pos),
+            EventKind::change(Widget::size)
+        ]
     );
 }
 

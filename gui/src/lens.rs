@@ -69,14 +69,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
         self.with_mut(data, |x| *x = value);
     }
 
-    /// Compose a `Lens<A, B>` with a `Lens<B, C>` to produce a `Lens<A, C>`
-    ///
-    /// ```
-    /// # use druid::*;
-    /// struct Foo { x: (u32, bool) }
-    /// let lens = lens!(Foo, x).then(lens!((u32, bool), 1));
-    /// assert_eq!(lens.get(&Foo { x: (0, true) }), true);
-    /// ```
     fn then<Other, C>(self, other: Other) -> Then<Self, Other, B>
     where
         Other: Lens<B, C> + Sized,
@@ -86,19 +78,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
         Then::new(self, other)
     }
 
-    /// Combine a `Lens<A, B>` with a function that can transform a `B` and its inverse.
-    ///
-    /// Useful for cases where the desired value doesn't physically exist in `A`, but can be
-    /// computed. For example, a lens like the following might be used to adapt a value with the
-    /// range 0-2 for use with a `Widget<f64>` like `Slider` that has a range of 0-1:
-    ///
-    /// ```
-    /// # use druid::*;
-    /// let lens = lens!((bool, f64), 1);
-    /// assert_eq!(lens.map(|x| x / 2.0, |x, y| *x = y * 2.0).get(&(true, 2.0)), 1.0);
-    /// ```
-    ///
-    /// The computed `C` may represent a whole or only part of the original `B`.
     fn map<Get, Put, C>(self, get: Get, put: Put) -> Then<Self, Map<Get, Put>, B>
     where
         Get: Fn(&B) -> C,
@@ -108,12 +87,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
         self.then(Map::new(get, put))
     }
 
-    /// Invoke a type's `Deref` impl
-    ///
-    /// ```
-    /// # use druid::*;
-    /// assert_eq!(lens::Id.deref().get(&Box::new(42)), 42);
-    /// ```
     fn deref(self) -> Then<Self, Deref, B>
     where
         B: ops::Deref + ops::DerefMut,
@@ -122,12 +95,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
         self.then(Deref)
     }
 
-    /// Access an index in a container
-    ///
-    /// ```
-    /// # use druid::*;
-    /// assert_eq!(lens::Id.index(2).get(&vec![0u32, 1, 2, 3]), 2);
-    /// ```
     fn index<I>(self, index: I) -> Then<Self, Index<I>, B>
     where
         I: Clone,
@@ -140,13 +107,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExt<A, B> for T {}
 
-/// Lens accessing a member of some type using accessor functions
-///
-/// See also the `lens` macro.
-///
-/// ```
-/// let lens = druid::lens::Field::new(|x: &Vec<u32>| &x[42], |x| &mut x[42]);
-/// ```
 pub struct Field<Get, GetMut> {
     get: Get,
     get_mut: GetMut,
@@ -179,16 +139,6 @@ where
     }
 }
 
-/// Construct a lens accessing a type's field
-///
-/// This is a convenience macro for constructing `Field` lenses for fields or indexable elements.
-///
-/// ```
-/// struct Foo { x: u32 }
-/// let lens = druid::lens!(Foo, x);
-/// let lens = druid::lens!((u32, bool), 1);
-/// let lens = druid::lens!([u8], [4]);
-/// ```
 #[macro_export]
 macro_rules! lens {
     ($ty:ty, [$index:expr]) => {
