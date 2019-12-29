@@ -1,4 +1,7 @@
-use crate::*;
+use crate::{
+    lens::{LeafLens, Lens},
+    *,
+};
 use indexmap::IndexMap;
 use slog::Logger;
 use std::{cell::RefCell, ops::Deref, rc::Rc};

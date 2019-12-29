@@ -15,16 +15,17 @@ use winput::Input;
 
 mod gui;
 pub mod interactive;
-mod lens2;
-mod placement;
-mod widget;
+pub mod lens;
+pub mod placement;
+pub mod widget;
 
-pub use crate::gui::*;
+pub use gui::*;
 pub use interactive::Interactive;
-use interactive::*;
-pub use lens2::*;
 pub use placement::*;
 pub use widget::*;
+
+use interactive::*;
+use lens::*;
 
 pub mod test_common;
 

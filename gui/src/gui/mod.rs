@@ -1,14 +1,14 @@
 use crate::*;
 use indexmap::IndexMap;
 use slog::Logger;
-mod drawer;
 use std::{cell::RefCell, rc::Rc};
 
+mod drawer;
 pub use drawer::*;
 
 pub const ROOT: usize = 1;
 
-pub trait AsId<D: GuiDrawer>: Clone {
+pub trait AsId<D: GuiDrawer>: Clone + std::fmt::Display {
     fn resolve(&self, gui: &Gui<D>) -> Option<Id>;
 }
 impl<D: GuiDrawer> AsId<D> for Id {
@@ -182,7 +182,7 @@ impl<D: GuiDrawer> Gui<D> {
         let id = self.insert(ROOT, widget).unwrap();
         self.aliases.insert(alias, id);
     }
-    /// Panics if widget does not exist, or if alias does not exist (if I = String)
+    /// Panics if widget does not exist, or (only if I = String) if alias does not exist
     pub fn get<I: AsId<D>>(&self, id: I) -> &Widget {
         self.try_get(id).unwrap()
     }

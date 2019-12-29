@@ -1,4 +1,4 @@
-use gui::{interactive::*, test_common::*, *};
+use gui::{interactive::*, lens::*, test_common::*, *};
 
 #[test]
 fn test_idempotent_positioning() {

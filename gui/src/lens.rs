@@ -1,301 +1,194 @@
-// Copyright 2019 The xi-editor Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+//! Traits and types to support lenses specialized for use on widgets and their fields.
+//!
+//! Usage always starts with a `LensDriver`: widgets use `InternalLens` because they have direct
+//! access to `events` etc.
+//!
+//! Users of the `gui` library use `WidgetLens`, which has the capability of pushing events to a
+//! buffer internal to `Gui`, and getting widgets from `Gui` based on widget id.
+//!
+//! Next, a `LensDriver` must be chained with any number of lenses always ending in a `LeafLens`
+//! which provides access to a field of a widget.
+//!
+//! Example from a widget implementation follows. The widget inserts a button as gets its id. Then
+//! in changes the text of said button by first getting its first child (which is a TextField), and
+//! then getting the `text` field of the `TextField`.
+//! ```
+//! use gui::{*, interactive::*, lens::*};
+//! use indexmap::IndexMap;
+//! # let mut gui = Gui::new(NoDrawer);
+//! # let mut parent_id = gui.insert_in_root(Container::new());
+//! # let mut children = gui.get_mut(parent_id).children_proxy();
+//! # let mut events = &mut Vec::new();
+//! let id = children.insert(Box::new(Button::new()));
+//! InternalLens::new(children.get_mut(id), events)
+//!     .chain(Widget::first_child)
+//!     .chain(TextField::text)
+//!     .put("Click me!".to_string());
+//! ```
+//!
+//! The same can be achieved in an application using `gui` in a similar way:
+//! ```
+//! use gui::{*, interactive::*, lens::*};
+//! # let mut gui = Gui::new(NoDrawer);
+//! WidgetLens::new(&mut gui, "my-button-id")
+//!     .chain(Widget::first_child)
+//!     .chain(TextField::text)
+//!     .put("Click me!".to_string());
+//! ```
+//!
+//! Note that in place of `"my-button-id"`, `&str`, `String` or `Id` can be used
+//! - anything identification you have handy.
+//! The last lens in the chain must be
+//!
+//! New widgets that implement Interactive should `#[derive(Lens)]`.
 
-//! Support for lenses, a way of focusing on subfields of data.
+use crate::gui::*;
+use crate::*;
+pub use gui_derive::Lens;
 
-use std::marker::PhantomData;
-use std::ops;
-
-/// A lens is a datatype that gives access to a part of a larger
-/// data structure.
+/// The Lens trait provides the basic lens functionality. In `gui` it should _always_ be used in
+/// conjunction with a [LensDriver].
 ///
-/// A simple example of a lens is a field of a struct; in this case,
-/// the lens itself is zero-sized. Another case is accessing an array
-/// element, in which case the lens contains the array index.
-///
-/// Many `Lens` implementations will be derived by macro, but custom
-/// implementations are practical as well.
-///
-/// The name "lens" is inspired by the [Haskell lens] package, which
-/// has generally similar goals. It's likely we'll develop more
-/// sophistication, for example combinators to combine lenses.
-///
-/// [Haskell lens]: http://hackage.haskell.org/package/lens
-pub trait Lens<T: ?Sized, U: ?Sized> {
-    /// Get non-mut access to the field.
-    ///
-    /// Runs the supplied closure with a reference to the data. It's
-    /// structured this way, as opposed to simply returning a reference,
-    /// so that the data might be synthesized on-the-fly by the lens.
-    fn with<V, F: FnOnce(&U) -> V>(&self, data: &T, f: F) -> V;
-
-    /// Get mutable access to the field.
-    ///
-    /// This method is defined in terms of a closure, rather than simply
-    /// yielding a mutable reference, because it is intended to be used
-    /// with value-type data (also known as immutable data structures).
-    /// For example, a lens for an immutable list might be implemented by
-    /// cloning the list, giving the closure mutable access to the clone,
-    /// then updating the reference after the closure returns.
-    fn with_mut<V, F: FnOnce(&mut U) -> V>(&self, data: &mut T, f: F) -> V;
+/// TODO: how to restrict usage?
+pub trait Lens: 'static {
+    type Source;
+    type Target;
+    fn get<'a>(&self, source: &'a Self::Source) -> &'a Self::Target;
+    fn get_mut<'a>(&self, source: &'a mut Self::Source) -> &'a mut Self::Target;
 }
 
-/// Helpers for manipulating `Lens`es
-pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
-    /// Copy the targeted value out of `data`
-    fn get(&self, data: &A) -> B
-    where
-        B: Clone,
-    {
-        self.with(data, |x| x.clone())
-    }
-
-    /// Set the targeted value in `data` to `value`
-    fn put(&self, data: &mut A, value: B)
-    where
-        B: Sized,
-    {
-        self.with_mut(data, |x| *x = value);
-    }
-
-    fn then<Other, C>(self, other: Other) -> Then<Self, Other, B>
-    where
-        Other: Lens<B, C> + Sized,
-        C: ?Sized,
-        Self: Sized,
-    {
-        Then::new(self, other)
-    }
-
-    fn map<Get, Put, C>(self, get: Get, put: Put) -> Then<Self, Map<Get, Put>, B>
-    where
-        Get: Fn(&B) -> C,
-        Put: Fn(&mut B, C),
-        Self: Sized,
-    {
-        self.then(Map::new(get, put))
-    }
-
-    fn deref(self) -> Then<Self, Deref, B>
-    where
-        B: ops::Deref + ops::DerefMut,
-        Self: Sized,
-    {
-        self.then(Deref)
-    }
-
-    fn index<I>(self, index: I) -> Then<Self, Index<I>, B>
-    where
-        I: Clone,
-        B: ops::Index<I> + ops::IndexMut<I>,
-        Self: Sized,
-    {
-        self.then(Index::new(index))
-    }
-}
-
-impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExt<A, B> for T {}
-
-pub struct Field<Get, GetMut> {
-    get: Get,
-    get_mut: GetMut,
-}
-
-impl<Get, GetMut> Field<Get, GetMut> {
-    /// Construct a lens from a pair of getter functions
-    pub fn new<T: ?Sized, U: ?Sized>(get: Get, get_mut: GetMut) -> Self
-    where
-        Get: Fn(&T) -> &U,
-        GetMut: Fn(&mut T) -> &mut U,
-    {
-        Self { get, get_mut }
-    }
-}
-
-impl<T, U, Get, GetMut> Lens<T, U> for Field<Get, GetMut>
+/// A lens to accesses a certain field on a widget.
+/// It should exclusively be used as a step in a [lens2::Chain].
+/// For more examples, look to the implementation of widgets like [DropdownButton].
+pub trait LeafLens: Lens<Source = Widget> + Clone
 where
-    T: ?Sized,
-    U: ?Sized,
-    Get: Fn(&T) -> &U,
-    GetMut: Fn(&mut T) -> &mut U,
+    Self::Target: PartialEq,
 {
-    fn with<V, F: FnOnce(&U) -> V>(&self, data: &T, f: F) -> V {
-        f((self.get)(data))
+}
+
+/// NOTE: with `Chain` its only implementor, it's not necessary to have a trait for this, but I
+/// thoguht about extending it in the future to let other things than Chain access fields.
+pub trait FieldLens<Target: PartialEq> {
+    fn get(&self) -> &Target;
+    fn put(&mut self, value: Target) -> &mut Self;
+}
+
+pub struct Chain<A, B> {
+    driver: A,
+    child_lens: B,
+}
+impl<A, B> FieldLens<B::Target> for Chain<A, B>
+where
+    A: LensDriver,
+    B: LeafLens,
+    B::Target: PartialEq,
+{
+    fn get(&self) -> &B::Target {
+        // need to get the child through the child_lens
+        // but the 'parent' is never exposed - `LensDriver` doesn't expose it in any way
+        self.child_lens.get(self.get_widget())
     }
-
-    fn with_mut<V, F: FnOnce(&mut U) -> V>(&self, data: &mut T, f: F) -> V {
-        f((self.get_mut)(data))
+    fn put(&mut self, value: B::Target) -> &mut Self {
+        let target = self.child_lens.get_mut(self.driver.get_widget_mut());
+        let equal = *target == value;
+        if !equal {
+            *target = value;
+            self.driver.push_event(self.child_lens.clone());
+        }
+        self
     }
 }
 
-#[macro_export]
-macro_rules! lens {
-    ($ty:ty, [$index:expr]) => {
-        $crate::lens::Field::new::<$ty, _>(|x| &x[$index], |x| &mut x[$index])
-    };
-    ($ty:ty, $field:tt) => {
-        $crate::lens::Field::new::<$ty, _>(|x| &x.$field, |x| &mut x.$field)
-    };
-}
-
-/// `Lens` composed of two lenses joined together
-#[derive(Debug, Copy)]
-pub struct Then<T, U, B: ?Sized> {
-    left: T,
-    right: U,
-    _marker: PhantomData<B>,
-}
-
-impl<T, U, B: ?Sized> Then<T, U, B> {
-    /// Compose two lenses
-    ///
-    /// See also `LensExt::then`.
-    pub fn new<A: ?Sized, C: ?Sized>(left: T, right: U) -> Self
+impl<A, B> LensDriver for Chain<A, B>
+where
+    A: LensDriver,
+{
+    fn get_widget(&self) -> &Widget {
+        self.driver.get_widget()
+    }
+    fn get_widget_mut(&mut self) -> &mut Widget {
+        self.driver.get_widget_mut()
+    }
+    fn push_event<F: LeafLens>(&mut self, lens: F)
     where
-        T: Lens<A, B>,
-        U: Lens<B, C>,
+        F::Target: PartialEq,
     {
-        Self {
-            left,
-            right,
-            _marker: PhantomData,
+        self.driver.push_event(lens)
+    }
+}
+
+/// Support operations on widgets. Implementors will store Id or &mut Widget internally
+pub trait LensDriver {
+    fn get_widget(&self) -> &Widget;
+    fn get_widget_mut(&mut self) -> &mut Widget;
+    fn push_event<F: LeafLens>(&mut self, lens: F)
+    where
+        F::Target: PartialEq;
+
+    fn chain<L: Lens>(self, lens: L) -> Chain<Self, L>
+    where
+        Self: Sized,
+        L: Sized,
+    {
+        Chain {
+            driver: self,
+            child_lens: lens,
         }
     }
 }
 
-impl<T, U, A, B, C> Lens<A, C> for Then<T, U, B>
-where
-    A: ?Sized,
-    B: ?Sized,
-    C: ?Sized,
-    T: Lens<A, B>,
-    U: Lens<B, C>,
-{
-    fn with<V, F: FnOnce(&C) -> V>(&self, data: &A, f: F) -> V {
-        self.left.with(data, |b| self.right.with(b, f))
-    }
-
-    fn with_mut<V, F: FnOnce(&mut C) -> V>(&self, data: &mut A, f: F) -> V {
-        self.left.with_mut(data, |b| self.right.with_mut(b, f))
+/// Used for looking up widgets globally
+pub struct WidgetLens<'a, D, I> {
+    id: I,
+    gui: &'a mut Gui<D>,
+}
+impl<'a, D, I> WidgetLens<'a, D, I> {
+    pub fn new(gui: &'a mut Gui<D>, id: I) -> Self {
+        Self { id, gui }
     }
 }
 
-impl<T: Clone, U: Clone, B> Clone for Then<T, U, B> {
-    fn clone(&self) -> Self {
-        Self {
-            left: self.left.clone(),
-            right: self.right.clone(),
-            _marker: PhantomData,
-        }
+impl<'a, D: GuiDrawer, I: AsId<D>> LensDriver for WidgetLens<'a, D, I> {
+    fn get_widget(&self) -> &Widget {
+        self.gui.get(self.id.clone())
     }
-}
-
-/// `Lens` built from a getter and a setter
-#[derive(Debug, Copy, Clone)]
-pub struct Map<Get, Put> {
-    get: Get,
-    put: Put,
-}
-
-impl<Get, Put> Map<Get, Put> {
-    /// Construct a mapping
-    ///
-    /// See also `LensExt::map`
-    pub fn new<A: ?Sized, B>(get: Get, put: Put) -> Self
+    fn get_widget_mut(&mut self) -> &mut Widget {
+        self.gui.get_mut(self.id.clone())
+    }
+    fn push_event<F: LeafLens>(&mut self, lens: F)
     where
-        Get: Fn(&A) -> B,
-        Put: Fn(&mut A, B),
+        F::Target: PartialEq,
     {
-        Self { get, put }
+        let id = self.id.resolve(&self.gui).unwrap();
+        self.gui
+            .internal
+            .borrow_mut()
+            .push_event(Event::change(id, lens))
     }
 }
 
-impl<A: ?Sized, B, Get, Put> Lens<A, B> for Map<Get, Put>
-where
-    Get: Fn(&A) -> B,
-    Put: Fn(&mut A, B),
-{
-    fn with<V, F: FnOnce(&B) -> V>(&self, data: &A, f: F) -> V {
-        f(&(self.get)(data))
-    }
-
-    fn with_mut<V, F: FnOnce(&mut B) -> V>(&self, data: &mut A, f: F) -> V {
-        let mut temp = (self.get)(data);
-        let x = f(&mut temp);
-        (self.put)(data, temp);
-        x
+/// Used only internally in `Interactive`
+pub struct InternalLens<'a, 'b> {
+    widget: &'a mut Widget,
+    events: &'b mut Vec<Event>,
+}
+impl<'a, 'b> InternalLens<'a, 'b> {
+    pub fn new(widget: &'a mut Widget, events: &'b mut Vec<Event>) -> Self {
+        Self { widget, events }
     }
 }
 
-/// `Lens` for invoking `Deref` and `DerefMut` on a type
-///
-/// See also `LensExt::deref`.
-#[derive(Debug, Copy, Clone)]
-pub struct Deref;
-
-impl<T: ?Sized> Lens<T, T::Target> for Deref
-where
-    T: ops::Deref + ops::DerefMut,
-{
-    fn with<V, F: FnOnce(&T::Target) -> V>(&self, data: &T, f: F) -> V {
-        f(data.deref())
+impl<'a, 'b> LensDriver for InternalLens<'a, 'b> {
+    fn get_widget(&self) -> &Widget {
+        &self.widget
     }
-    fn with_mut<V, F: FnOnce(&mut T::Target) -> V>(&self, data: &mut T, f: F) -> V {
-        f(data.deref_mut())
+    fn get_widget_mut(&mut self) -> &mut Widget {
+        &mut self.widget
     }
-}
-
-/// `Lens` for indexing containers
-#[derive(Debug, Copy, Clone)]
-pub struct Index<I> {
-    index: I,
-}
-
-impl<I> Index<I> {
-    /// Construct a lens that accesses a particular index
-    ///
-    /// See also `LensExt::index`.
-    pub fn new(index: I) -> Self {
-        Self { index }
-    }
-}
-
-impl<T, I> Lens<T, T::Output> for Index<I>
-where
-    T: ?Sized + ops::Index<I> + ops::IndexMut<I>,
-    I: Clone,
-{
-    fn with<V, F: FnOnce(&T::Output) -> V>(&self, data: &T, f: F) -> V {
-        f(&data[self.index.clone()])
-    }
-    fn with_mut<V, F: FnOnce(&mut T::Output) -> V>(&self, data: &mut T, f: F) -> V {
-        f(&mut data[self.index.clone()])
-    }
-}
-
-/// The identity lens: the lens which does nothing, i.e. exposes exactly the original value.
-///
-/// Useful for starting a lens combinator chain, or passing to lens-based interfaces.
-#[derive(Debug, Copy, Clone)]
-pub struct Id;
-
-impl<A: ?Sized> Lens<A, A> for Id {
-    fn with<V, F: FnOnce(&A) -> V>(&self, data: &A, f: F) -> V {
-        f(data)
-    }
-
-    fn with_mut<V, F: FnOnce(&mut A) -> V>(&self, data: &mut A, f: F) -> V {
-        f(data)
+    fn push_event<F: LeafLens>(&mut self, lens: F)
+    where
+        F::Target: PartialEq,
+    {
+        self.events.push(Event::change(self.widget.get_id(), lens))
     }
 }
