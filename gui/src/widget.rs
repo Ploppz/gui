@@ -21,8 +21,10 @@ macro_rules! children_proxy {
 // TODO(PosLens): should be possible to read the value indeed but not set it
 // To set a value one should go through `config`!
 // Perhaps `get_mut` somehow has to do that? Idk how.
+#[derive(Clone)]
 pub struct PosLens;
-impl FieldLens for PosLens {
+impl Lens for PosLens {
+    type Source = Widget;
     type Target = (f32, f32);
     fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
         &source.pos
@@ -31,8 +33,12 @@ impl FieldLens for PosLens {
         &mut source.pos
     }
 }
+impl LeafLens for PosLens {}
+
+#[derive(Clone)]
 pub struct SizeLens;
-impl FieldLens for SizeLens {
+impl Lens for SizeLens {
+    type Source = Widget;
     type Target = (f32, f32);
     fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
         &source.pos
@@ -41,10 +47,26 @@ impl FieldLens for SizeLens {
         &mut source.pos
     }
 }
+impl LeafLens for SizeLens {}
+
+#[derive(Clone)]
+pub struct FirstChildLens;
+impl Lens for FirstChildLens {
+    type Source = Widget;
+    type Target = Widget;
+    fn get<'a>(&self, w: &'a Widget) -> &'a Self::Target {
+        &w.children().values().next().unwrap()
+    }
+    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Self::Target {
+        w.children_mut().next().unwrap()
+    }
+}
+
 #[allow(non_upper_case_globals)]
 impl Widget {
     pub const size: SizeLens = SizeLens;
     pub const pos: PosLens = PosLens;
+    pub const first_child: FirstChildLens = FirstChildLens;
 }
 
 #[derive(Deref, DerefMut, Debug)]

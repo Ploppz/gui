@@ -9,7 +9,7 @@ use syn::parse_macro_input;
 ///
 /// An associated constant is defined on the struct for each field,
 /// having the same name as the field.
-#[proc_macro_derive(Lenses)]
+#[proc_macro_derive(Lens)]
 pub fn derive_lens(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
     lenses::derive_lens_impl(input)

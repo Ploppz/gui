@@ -1,3 +1,5 @@
+use inflector::cases::{classcase::*, snakecase::*};
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{spanned::Spanned, Data};
 
@@ -33,9 +35,9 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
         ));
     };
 
-    let twizzled_name = if is_camel_case(&ty.to_string()) {
+    let twizzled_name = if is_class_case(&ty.to_string()) {
         let temp_name = format!("{}_derived_lenses", to_snake_case(&ty.to_string()));
-        proc_macro2::Ident::new(&temp_name, proc_macro2::Span::call_site())
+        Ident::new(&temp_name, Span::call_site())
     } else {
         return Err(syn::Error::new(
             ty.span(),
@@ -43,24 +45,38 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
         ));
     };
 
-    // Define lens types for each field
-    let defs = fields.iter().map(|f| {
-        let field_name = &f.ident;
+    let lenses = fields
+        .into_iter()
+        .map(|f| {
+            let field_name = f.clone().ident.unwrap();
+            let lens_name = format!(
+                "{}{}Lens",
+                ty.to_string(),
+                to_class_case(&field_name.to_string())
+            );
+            let field_ty = f.ty.clone();
+            (
+                field_name,
+                Ident::new(&lens_name, Span::call_site()),
+                field_ty,
+            )
+        })
+        .collect::<Vec<_>>();
 
+    // Define lens types for each field
+    let defs = lenses.iter().map(|(_, lens_name, _)| {
         quote! {
             /// Lens for the field on #ty
             #[allow(non_camel_case_types)]
-            pub struct #field_name;
-            // TODO  camel case name?
+            #[derive(Clone)]
+            pub struct #lens_name;
         }
     });
 
-    let impls = fields.iter().map(|f| {
-        let field_name = &f.ident;
-        let field_ty = &f.ty;
-
+    let impls = lenses.iter().map(|(field_name, lens_name, field_ty)| {
         quote! {
-            impl crate::FieldLens for #twizzled_name::#field_name {
+            impl crate::Lens for #twizzled_name::#lens_name {
+                type Source = Widget;
                 type Target = #field_ty;
 
                 fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
@@ -71,16 +87,19 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
                     &mut source.inner.downcast_mut::<#ty>().unwrap()
                         .#field_name
                 }
-
             }
+            impl crate::LeafLens for #twizzled_name::#lens_name {}
         }
     });
 
-    let associated_items = fields.iter().map(|f| {
-        let field_name = &f.ident;
+    let associated_items = lenses.iter().map(|(field_name, lens_name, _)| {
+        let doc = format!(
+            "[LeafLens] to access the field `{}` of `{}`",
+            field_name, ty
+        );
         quote! {
-            /// Lens for the corresponding field
-            pub const #field_name: #twizzled_name::#field_name = #twizzled_name::#field_name;
+            #[doc = #doc]
+            pub const #field_name: #twizzled_name::#lens_name = #twizzled_name::#lens_name;
         }
     });
 
@@ -100,55 +119,4 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
     };
 
     Ok(expanded)
-}
-
-//I stole these from rustc!
-fn char_has_case(c: char) -> bool {
-    c.is_lowercase() || c.is_uppercase()
-}
-
-fn is_camel_case(name: &str) -> bool {
-    let name = name.trim_matches('_');
-    if name.is_empty() {
-        return true;
-    }
-
-    // start with a non-lowercase letter rather than non-uppercase
-    // ones (some scripts don't have a concept of upper/lowercase)
-    !name.chars().next().unwrap().is_lowercase()
-        && !name.contains("__")
-        && !name.chars().collect::<Vec<_>>().windows(2).any(|pair| {
-            // contains a capitalisable character followed by, or preceded by, an underscore
-            char_has_case(pair[0]) && pair[1] == '_' || char_has_case(pair[1]) && pair[0] == '_'
-        })
-}
-
-fn to_snake_case(mut str: &str) -> String {
-    let mut words = vec![];
-    // Preserve leading underscores
-    str = str.trim_start_matches(|c: char| {
-        if c == '_' {
-            words.push(String::new());
-            true
-        } else {
-            false
-        }
-    });
-    for s in str.split('_') {
-        let mut last_upper = false;
-        let mut buf = String::new();
-        if s.is_empty() {
-            continue;
-        }
-        for ch in s.chars() {
-            if !buf.is_empty() && buf != "'" && ch.is_uppercase() && !last_upper {
-                words.push(buf);
-                buf = String::new();
-            }
-            last_upper = ch.is_uppercase();
-            buf.extend(ch.to_lowercase());
-        }
-        words.push(buf);
-    }
-    words.join("_")
 }

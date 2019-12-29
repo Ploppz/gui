@@ -11,20 +11,18 @@ extern crate mopa;
 extern crate derive_deref;
 
 use indexmap::IndexMap;
-pub(crate) use lens2::InternalLens;
 use winput::Input;
 
 mod gui;
-mod interactive;
-mod lens;
+pub mod interactive;
 mod lens2;
 mod placement;
 mod widget;
 
 pub use crate::gui::*;
-pub use interactive::*;
-pub use lens::*;
-pub use lens2::{FieldLens, LensDriver, WidgetLens};
+pub use interactive::Interactive;
+use interactive::*;
+pub use lens2::*;
 pub use placement::*;
 pub use widget::*;
 
@@ -39,10 +37,16 @@ pub struct FieldId(TypeId);
 
 impl FieldId {
     /// Construct a new FieldId, which contains the TypeId of T
-    pub fn of<T: 'static + FieldLens>(_: T) -> FieldId {
+    pub fn of<T: 'static + LeafLens>(_: T) -> FieldId
+    where
+        T::Target: PartialEq,
+    {
         FieldId(TypeId::of::<T>())
     }
-    pub fn is<T: 'static + FieldLens>(&self, _: T) -> bool {
+    pub fn is<T: 'static + LeafLens>(&self, _: T) -> bool
+    where
+        T::Target: PartialEq,
+    {
         self.0 == TypeId::of::<T>()
     }
     pub fn is_pos(&self) -> bool {
@@ -62,7 +66,10 @@ impl Event {
     pub fn new(id: Id, kind: EventKind) -> Event {
         Event { id, kind }
     }
-    pub fn change<T: FieldLens + 'static>(id: Id, t: T) -> Event {
+    pub fn change<T: LeafLens + 'static>(id: Id, t: T) -> Event
+    where
+        T::Target: PartialEq,
+    {
         Event {
             id,
             kind: EventKind::change(t),
@@ -85,12 +92,18 @@ pub enum EventKind {
     Removed,
 }
 impl EventKind {
-    pub fn change<T: FieldLens + 'static>(t: T) -> EventKind {
+    pub fn change<T: LeafLens + 'static>(t: T) -> EventKind
+    where
+        T::Target: PartialEq,
+    {
         EventKind::Change {
             field: FieldId::of::<T>(t),
         }
     }
-    pub fn is_change<T: FieldLens>(&self, t: T) -> bool {
+    pub fn is_change<T: LeafLens>(&self, t: T) -> bool
+    where
+        T::Target: PartialEq,
+    {
         if let EventKind::Change { field } = self {
             return field.is(t);
         } else {

@@ -1,5 +1,4 @@
 use crate::*;
-use gui_derive::Lenses;
 use indexmap::IndexMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -8,7 +7,7 @@ pub struct DropdownOption {
     pub value: String,
 }
 
-#[derive(Lenses, Debug)]
+#[derive(Lens, Debug)]
 pub struct DropdownButton {
     options: Vec<DropdownOption>,
     value: Option<String>,
@@ -69,14 +68,13 @@ impl Interactive for DropdownButton {
                     let toggled = children[id].downcast_ref::<ToggleButton>().unwrap().state;
                     if toggled {
                         for (i, option) in self.options.iter().enumerate() {
-                            let mut btn = Button::new();
-                            let id = children.insert(Box::new(btn));
-                            // TODO: set text
-                            //  - figure out lenses that go further..
-                            /*
+                            let id = children.insert(Box::new(Button::new()));
+
                             InternalLens::new(children.get_mut(id), events)
-                                .put(
-                            */
+                                .chain(Widget::first_child)
+                                .chain(TextField::text)
+                                .put(option.name.clone());
+
                             // Button::text.put(children.get_mut(id), option.name.clone());
                             self.opt_map.insert(id, i);
                         }
@@ -91,8 +89,13 @@ impl Interactive for DropdownButton {
                     let opt = self.options[*opt_idx].clone();
                     let btn = children.get_mut(self.main_button_id);
                     InternalLens::new(btn, events)
-                        .put(ToggleButton::text, opt.name.clone())
-                        .put(ToggleButton::state, false);
+                        .chain(Widget::first_child)
+                        .chain(TextField::text)
+                        .put(opt.name.clone());
+                    InternalLens::new(btn, events)
+                        .chain(ToggleButton::state)
+                        .put(false);
+
                     self.value = Some(opt.value.clone());
 
                     self.close(children);

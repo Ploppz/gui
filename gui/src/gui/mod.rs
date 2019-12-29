@@ -1,4 +1,3 @@
-use crate::lens::Lens;
 use crate::*;
 use indexmap::IndexMap;
 use slog::Logger;
@@ -71,29 +70,6 @@ pub struct Gui<D> {
     drawer: D,
     pub aliases: IndexMap<String, Id>,
     pub internal: Rc<RefCell<GuiInternal>>,
-}
-
-pub struct WidgetLens<D, I> {
-    id: I,
-    _phantom: std::marker::PhantomData<D>,
-}
-impl<D: GuiDrawer, I: AsId<D>> WidgetLens<D, I> {
-    pub fn get(id: I) -> Self {
-        Self {
-            id,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-impl<D: GuiDrawer, I: AsId<D>> Lens<Gui<D>, Widget> for WidgetLens<D, I> {
-    fn with<V, F: FnOnce(&Widget) -> V>(&self, gui: &Gui<D>, f: F) -> V {
-        let w = gui.get(self.id.clone());
-        f(w)
-    }
-    fn with_mut<V, F: FnOnce(&mut Widget) -> V>(&self, gui: &mut Gui<D>, f: F) -> V {
-        let w = gui.get_mut(self.id.clone());
-        f(w)
-    }
 }
 
 impl<D: GuiDrawer> Gui<D> {

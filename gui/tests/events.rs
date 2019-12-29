@@ -1,5 +1,4 @@
-use gui::test_common::*;
-use gui::*;
+use gui::{interactive::*, test_common::*, *};
 
 #[test]
 fn test_idempotent_positioning() {
@@ -49,7 +48,9 @@ fn test_mark_change() {
     fix.update();
 
     // Manually change the toggle button
-    WidgetLens::new(&mut fix.gui, "ToggleButton 0").put(ToggleButton::state, true);
+    WidgetLens::new(&mut fix.gui, "ToggleButton 0")
+        .chain(ToggleButton::state)
+        .put(true);
 
     let (events, capture) = fix.update();
     let relevant_events = events

@@ -1,7 +1,6 @@
 use crate::*;
-use gui_derive::Lenses;
 
-#[derive(Lenses, Debug)]
+#[derive(Lens, Debug)]
 pub struct TextField {
     pub text: String,
 }

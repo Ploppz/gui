@@ -1,6 +1,6 @@
 #![allow(non_upper_case_globals)]
 use crate::*;
-use gui_derive::Lenses;
+use interactive::*;
 
 #[derive(Debug)]
 pub struct Button {}
@@ -25,24 +25,11 @@ impl Interactive for Button {
     }
 }
 
-pub struct ToggleButtonTextLens;
-impl FieldLens for ToggleButtonTextLens {
-    type Target = Widget;
-    fn get<'a>(&self, w: &'a Widget) -> &'a Self::Target {
-        &w.children().values().next().unwrap()
-    }
-    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Self::Target {
-        w.children_mut().next().unwrap()
-    }
-}
-
-#[derive(Lenses, Debug)]
+#[derive(Lens, Debug)]
 pub struct ToggleButton {
     pub state: bool,
 }
 impl ToggleButton {
-    /// Lens to access and modify the text of the button
-    pub const text: ToggleButtonTextLens = ToggleButtonTextLens;
     pub fn new() -> ToggleButton {
         ToggleButton { state: false }
     }
