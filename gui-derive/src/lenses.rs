@@ -74,17 +74,21 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
     });
 
     let impls = lenses.iter().map(|(field_name, lens_name, field_ty)| {
+        let err_str = format!(
+            "Downcast error in {} - could not downcast to {}",
+            lens_name, ty
+        );
         quote! {
             impl crate::Lens for #twizzled_name::#lens_name {
                 type Source = Widget;
                 type Target = #field_ty;
 
                 fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
-                    &source.inner.downcast_ref::<#ty>().unwrap()
+                    &source.inner.downcast_ref::<#ty>().expect(#err_str)
                         .#field_name
                 }
                 fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
-                    &mut source.inner.downcast_mut::<#ty>().unwrap()
+                    &mut source.inner.downcast_mut::<#ty>().expect(#err_str)
                         .#field_name
                 }
             }

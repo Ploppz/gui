@@ -57,10 +57,10 @@ pub struct FirstChildLens;
 impl Lens for FirstChildLens {
     type Source = Widget;
     type Target = Widget;
-    fn get<'a>(&self, w: &'a Widget) -> &'a Self::Target {
+    fn get<'a>(&self, w: &'a Widget) -> &'a Widget {
         &w.children().values().next().unwrap()
     }
-    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Self::Target {
+    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Widget {
         w.children_mut().next().unwrap()
     }
 }

@@ -66,29 +66,29 @@ where
 {
 }
 
-/// NOTE: with `Chain` its only implementor, it's not necessary to have a trait for this, but I
-/// thoguht about extending it in the future to let other things than Chain access fields.
-pub trait FieldLens<Target: PartialEq> {
-    fn get(&self) -> &Target;
-    fn put(&mut self, value: Target) -> &mut Self;
-}
-
 pub struct Chain<A, B> {
     driver: A,
     child_lens: B,
 }
-impl<A, B> FieldLens<B::Target> for Chain<A, B>
+
+impl<A, B> Chain<A, B>
+where
+    A: LensDriver,
+    B: Lens<Source = Widget>,
+{
+    pub fn get(&self) -> &B::Target {
+        let w = self.driver.get_widget();
+        self.child_lens.get(w)
+    }
+}
+
+impl<A, B> Chain<A, B>
 where
     A: LensDriver,
     B: LeafLens,
     B::Target: PartialEq,
 {
-    fn get(&self) -> &B::Target {
-        // need to get the child through the child_lens
-        // but the 'parent' is never exposed - `LensDriver` doesn't expose it in any way
-        self.child_lens.get(self.get_widget())
-    }
-    fn put(&mut self, value: B::Target) -> &mut Self {
+    pub fn put(&mut self, value: B::Target) -> &mut Self {
         let target = self.child_lens.get_mut(self.driver.get_widget_mut());
         let equal = *target == value;
         if !equal {
@@ -102,12 +102,13 @@ where
 impl<A, B> LensDriver for Chain<A, B>
 where
     A: LensDriver,
+    B: Lens<Source = Widget, Target = Widget>,
 {
     fn get_widget(&self) -> &Widget {
-        self.driver.get_widget()
+        self.child_lens.get(self.driver.get_widget())
     }
     fn get_widget_mut(&mut self) -> &mut Widget {
-        self.driver.get_widget_mut()
+        self.child_lens.get_mut(self.driver.get_widget_mut())
     }
     fn push_event<F: LeafLens>(&mut self, lens: F)
     where
