@@ -78,6 +78,7 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
             "Downcast error in {} - could not downcast to {}",
             lens_name, ty
         );
+        let target_str = format!("{}::{}", ty, field_name);
         quote! {
             impl crate::Lens for #twizzled_name::#lens_name {
                 type Source = Widget;
@@ -92,7 +93,11 @@ fn derive_struct(input: &syn::DeriveInput) -> Result<proc_macro2::TokenStream, s
                         .#field_name
                 }
             }
-            impl crate::LeafLens for #twizzled_name::#lens_name {}
+            impl crate::LeafLens for #twizzled_name::#lens_name {
+                fn target(&self) -> String {
+                    #target_str.to_string()
+                }
+            }
         }
     });
 

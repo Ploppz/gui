@@ -28,19 +28,19 @@ impl DropdownButton {
         self.options.push(DropdownOption { name, value });
         self
     }
-    pub fn close(&mut self, children: &mut ChildrenProxy) {
+    pub fn close(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) {
         let to_remove = children.keys().cloned().collect::<Vec<_>>();
         for id in to_remove {
             if id != self.main_button_id {
-                children.remove(id);
+                children.remove(id, gui);
             }
         }
         self.opt_map = IndexMap::new();
     }
 }
 impl Interactive for DropdownButton {
-    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
-        let main_id = children.insert(Box::new(ToggleButton::new()) as Box<dyn Interactive>);
+    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
+        let main_id = children.insert(Box::new(ToggleButton::new()) as Box<dyn Interactive>, gui);
         children.get_mut(main_id).config.set_height(24.0);
         self.main_button_id = main_id;
         WidgetConfig::default()
@@ -50,9 +50,9 @@ impl Interactive for DropdownButton {
     fn update(
         &mut self,
         _id: Id,
-        local_events: &[Event],
+        local_events: Vec<Event>,
         children: &mut ChildrenProxy,
-        events: &mut Vec<Event>,
+        gui: &GuiShared,
     ) {
         // Always ensure that all children have the same width
 
@@ -68,9 +68,9 @@ impl Interactive for DropdownButton {
                     let toggled = children[id].downcast_ref::<ToggleButton>().unwrap().state;
                     if toggled {
                         for (i, option) in self.options.iter().enumerate() {
-                            let id = children.insert(Box::new(Button::new()));
+                            let id = children.insert(Box::new(Button::new()), &gui);
 
-                            InternalLens::new(children.get_mut(id), events)
+                            InternalLens::new(children.get_mut(id), gui.clone())
                                 .chain(Widget::first_child)
                                 .chain(TextField::text)
                                 .put(option.name.clone());
@@ -79,7 +79,7 @@ impl Interactive for DropdownButton {
                             self.opt_map.insert(id, i);
                         }
                     } else {
-                        self.close(children);
+                        self.close(children, gui);
                     }
                 }
             }
@@ -88,17 +88,17 @@ impl Interactive for DropdownButton {
                 if *kind == EventKind::Press {
                     let opt = self.options[*opt_idx].clone();
                     let btn = children.get_mut(self.main_button_id);
-                    InternalLens::new(btn, events)
+                    InternalLens::new(btn, gui.clone())
                         .chain(Widget::first_child)
                         .chain(TextField::text)
                         .put(opt.name.clone());
-                    InternalLens::new(btn, events)
+                    InternalLens::new(btn, gui.clone())
                         .chain(ToggleButton::state)
                         .put(false);
 
                     self.value = Some(opt.value.clone());
 
-                    self.close(children);
+                    self.close(children, gui);
                 }
             }
         }

@@ -194,10 +194,10 @@ fn print_fixture_widget_tree() {
     // just once and for all show it
     use std::io::Write;
     writeln!(&mut std::io::stdout(), "TestFixture widget tree:").unwrap();
-    print_widget_tree(TestFixture::fixture().gui);
+    print_widget_tree(&TestFixture::fixture().gui);
 }
 use ptree::{output::print_tree, TreeBuilder};
-pub fn print_widget_tree<D: GuiDrawer>(gui: Gui<D>) {
+pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
     let aliases = gui
         .aliases
         .iter()

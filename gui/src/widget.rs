@@ -4,7 +4,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use slog::Logger;
-use std::{cell::RefCell, ops::Deref, rc::Rc};
+use std::ops::Deref;
 use winput::Input;
 
 /// Macro is needed rather than a member function, in order to preserve borrow information:
@@ -14,7 +14,6 @@ macro_rules! children_proxy {
         ChildrenProxy {
             self_id: $self.id,
             children: &mut $self.children,
-            gui: $self.gui.clone(),
         }
     };
 }
@@ -36,7 +35,11 @@ impl Lens for PosLens {
         &mut source.pos
     }
 }
-impl LeafLens for PosLens {}
+impl LeafLens for PosLens {
+    fn target(&self) -> String {
+        "Widget::pos".into()
+    }
+}
 
 #[derive(Clone)]
 pub struct SizeLens;
@@ -50,7 +53,11 @@ impl Lens for SizeLens {
         &mut source.pos
     }
 }
-impl LeafLens for SizeLens {}
+impl LeafLens for SizeLens {
+    fn target(&self) -> String {
+        "Widget::size".into()
+    }
+}
 
 #[derive(Clone)]
 pub struct FirstChildLens;
@@ -93,7 +100,7 @@ pub struct Widget {
 
     pub config: WidgetConfig,
 
-    gui: Rc<RefCell<GuiInternal>>,
+    gui: GuiShared,
 
     /// Keeps track of hover state in order to generate the right WidgetEvents
     inside: bool,
@@ -108,14 +115,13 @@ pub struct Widget {
 }
 
 impl Widget {
-    pub fn new(id: Id, mut widget: Box<dyn Interactive>, gui: Rc<RefCell<GuiInternal>>) -> Widget {
+    pub fn new(id: Id, mut widget: Box<dyn Interactive>, gui: GuiShared) -> Widget {
         let mut children = IndexMap::new();
         let mut proxy = ChildrenProxy {
             self_id: id,
             children: &mut children,
-            gui: gui.clone(),
         };
-        let config = widget.init(&mut proxy);
+        let config = widget.init(&mut proxy, &gui);
         Widget {
             inner: widget,
             children,
@@ -142,10 +148,12 @@ impl Widget {
         self.children.values_mut()
     }
     pub fn insert_child(&mut self, widget: Box<dyn Interactive>) -> Id {
-        self.children_proxy().insert(widget)
+        let gui = self.gui.clone();
+        self.children_proxy().insert(widget, &gui)
     }
     pub fn remove_child(&mut self, id: Id) {
-        self.children_proxy().remove(id)
+        let gui = self.gui.clone();
+        self.children_proxy().remove(id, &gui)
     }
     /// Needed only when access to children are needed without access to the `Widget`: for example
     /// in `Interactive::update` and `Interactive::init`, which cannot possibly know the `Widget`
@@ -171,30 +179,28 @@ impl Widget {
         sw: f32,
         sh: f32,
         mouse: (f32, f32),
-        events: &mut Vec<Event>,
+        gui: &GuiShared,
         log: Logger,
     ) -> Capture {
+        let prev_events_len = gui.borrow().events().len();
         let mut capture = Capture::default();
 
-        // Buffer all events of all descendants and self in `local_events` - added to the `events`
-        // pool at the very end. NOTE: this can be optimized heavily!
-        let mut local_events = Vec::new();
         // Update children
         for child in self.children.values_mut() {
-            let child_capture =
-                child.update_bottom_up(input, sw, sh, mouse, &mut local_events, log.clone());
+            let child_capture = child.update_bottom_up(input, sw, sh, mouse, gui, log.clone());
             capture |= child_capture;
         }
 
         if !capture.mouse {
+            let mut gui = gui.borrow_mut();
             let now_inside = self.inside(self.pos, self.size, mouse);
             let prev_inside = self.inside;
             self.inside = now_inside;
 
             if now_inside && !prev_inside {
-                local_events.push(Event::new(self.id, EventKind::Hover));
+                gui.push_event(Event::new(self.id, EventKind::Hover));
             } else if prev_inside && !now_inside {
-                local_events.push(Event::new(self.id, EventKind::Unhover));
+                gui.push_event(Event::new(self.id, EventKind::Unhover));
             }
 
             if now_inside {
@@ -203,17 +209,17 @@ impl Widget {
 
             if now_inside && input.is_mouse_button_toggled_down(winit::event::MouseButton::Left) {
                 self.pressed = true;
-                local_events.push(Event::new(self.id, EventKind::Press));
+                gui.push_event(Event::new(self.id, EventKind::Press));
             }
             if self.pressed && input.is_mouse_button_toggled_up(winit::event::MouseButton::Left) {
                 self.pressed = false;
-                local_events.push(Event::new(self.id, EventKind::Release));
+                gui.push_event(Event::new(self.id, EventKind::Release));
             }
         }
         // Execute widget-specific logic
+        let local_events = gui.borrow().events()[prev_events_len..].to_vec();
         self.inner
-            .update(self.id, &local_events, &mut children_proxy!(self), events);
-        events.extend(local_events);
+            .update(self.id, local_events, &mut children_proxy!(self), gui);
 
         capture
     }
@@ -234,13 +240,13 @@ impl Widget {
     /// Additionally, updates sizes of text fields with the help of the `GuiDrawer`
     pub(crate) fn layout_alg<D: GuiDrawer>(
         &mut self,
-        events: &mut Vec<Event>,
+        gui: GuiShared,
         drawer: &D,
         ctx: &mut D::Context,
     ) {
         for child in self.children.values_mut() {
             // Recurse
-            child.layout_alg(events, drawer, ctx);
+            child.layout_alg(gui.clone(), drawer, ctx);
         }
 
         // println!("Positioning Parent [{}]", self.id);
@@ -324,7 +330,8 @@ impl Widget {
         }
         if new_size != self.size {
             self.size = new_size;
-            events.push(Event::change(self.id, Widget::size));
+            gui.borrow_mut()
+                .push_event(Event::change(self.id, Widget::size));
         }
     }
     /* TODO
@@ -458,7 +465,6 @@ pub struct ChildrenProxy<'a> {
     self_id: Id,
     /// children of a widget
     children: &'a mut IndexMap<Id, Widget>,
-    pub gui: Rc<RefCell<GuiInternal>>,
 }
 impl<'a> Deref for ChildrenProxy<'a> {
     type Target = IndexMap<Id, Widget>;
@@ -467,36 +473,35 @@ impl<'a> Deref for ChildrenProxy<'a> {
     }
 }
 impl<'a> ChildrenProxy<'a> {
-    pub fn new(
-        self_id: Id,
-        children: &'a mut IndexMap<Id, Widget>,
-        gui: Rc<RefCell<GuiInternal>>,
-    ) -> Self {
-        Self {
-            self_id,
-            children,
-            gui,
-        }
+    pub fn new(self_id: Id, children: &'a mut IndexMap<Id, Widget>) -> Self {
+        Self { self_id, children }
     }
-    pub fn insert(&mut self, widget: Box<dyn Interactive>) -> Id {
-        let id = self.gui.borrow_mut().new_id();
+    pub fn insert(&mut self, widget: Box<dyn Interactive>, gui: &GuiShared) -> Id {
+        let id = {
+            let mut gui = gui.borrow_mut();
+            let id = gui.new_id();
 
-        // Update paths
-        let path = if self.self_id == 1 {
-            vec![]
-        } else {
-            let mut p = self.gui.borrow().paths[&self.self_id].clone();
-            p.push(self.self_id);
-            p
+            // Emit event
+            gui.push_event(Event::new(id, EventKind::New));
+            println!("EMIT New for {}", id);
+            // Update paths
+            let path = if self.self_id == 1 {
+                vec![]
+            } else {
+                let mut p = gui.get_path(self.self_id).to_vec();
+                p.push(self.self_id);
+                p
+            };
+            gui.insert_path(id, path);
+            id
         };
-        self.gui.borrow_mut().paths.insert(id, path);
-        let widget = Widget::new(id, widget, self.gui.clone());
+
+        let widget = Widget::new(id, widget, gui.clone());
         self.children.insert(id, widget);
         id
     }
-    pub fn remove(&mut self, id: Id) {
-        self.gui.borrow_mut().remove(id);
-        // self.children.shift_remove(&id)
+    pub fn remove(&mut self, id: Id, gui: &GuiShared) {
+        gui.borrow_mut().remove(id);
     }
     pub fn get_mut(&mut self, id: Id) -> &mut Widget {
         self.children.get_mut(&id).unwrap()

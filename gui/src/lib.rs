@@ -19,7 +19,7 @@ pub mod lens;
 pub mod placement;
 pub mod widget;
 
-pub use gui::*;
+pub use self::gui::*;
 pub use interactive::Interactive;
 pub use placement::*;
 pub use widget::*;

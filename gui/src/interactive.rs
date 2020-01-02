@@ -22,7 +22,7 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// `children` provides an interface to add/delete/get children of this widget.
     /// That is, it is basically a wrapper around the owning Widget's `children`
 
-    fn init(&mut self, _children: &mut ChildrenProxy) -> WidgetConfig {
+    fn init(&mut self, _children: &mut ChildrenProxy, _gui: &GuiShared) -> WidgetConfig {
         WidgetConfig::default()
     }
     /// Optional additional logic specific to this widget type, called in the bottom-up phase, and
@@ -33,16 +33,12 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// *Make sure that if any fields of `self` are changed, to generate emit a
     /// `EventKind::Change {..}` for that field.*
     /// `_children` is a proxy to the `Widget` which owns `self`.
-    /// `_events` is the collection of events which should be pushed to.
-    ///
-    /// Returns events resulting from this update. For example, if children are added, it should
-    /// return Change events for those children.
     fn update(
         &mut self,
         _id: Id,
-        _local_events: &[Event],
+        _local_events: Vec<Event>,
         _children: &mut ChildrenProxy,
-        _events: &mut Vec<Event>,
+        _gui: &GuiShared,
     ) {
     }
 

@@ -10,8 +10,8 @@ impl Button {
     }
 }
 impl Interactive for Button {
-    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(String::new())));
+    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
+        children.insert(Box::new(TextField::new(String::new())), gui);
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)
@@ -35,8 +35,8 @@ impl ToggleButton {
     }
 }
 impl Interactive for ToggleButton {
-    fn init(&mut self, children: &mut ChildrenProxy) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(String::new())));
+    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
+        children.insert(Box::new(TextField::new(String::new())), gui);
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)
@@ -44,15 +44,16 @@ impl Interactive for ToggleButton {
     fn update(
         &mut self,
         id: Id,
-        local_events: &[Event],
+        local_events: Vec<Event>,
         _children: &mut ChildrenProxy,
-        events: &mut Vec<Event>,
+        gui: &GuiShared,
     ) {
         for event in local_events {
             if id == event.id {
                 if let EventKind::Release = event.kind {
                     self.state = !self.state;
-                    events.push(Event::change(event.id, Self::state));
+                    gui.borrow_mut()
+                        .push_event(Event::change(event.id, Self::state));
                 }
             }
         }

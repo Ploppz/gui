@@ -13,32 +13,45 @@
 //! in changes the text of said button by first getting its first child (which is a TextField), and
 //! then getting the `text` field of the `TextField`.
 //! ```
-//! use gui::{*, interactive::*, lens::*};
-//! use indexmap::IndexMap;
+//! # use gui::{*, interactive::*, lens::*};
+//! # use indexmap::IndexMap;
 //! # let mut gui = Gui::new(NoDrawer);
+//! # let gui_shared = gui.shared();
 //! # let mut parent_id = gui.insert_in_root(Container::new());
 //! # let mut children = gui.get_mut(parent_id).children_proxy();
-//! # let mut events = &mut Vec::new();
-//! let id = children.insert(Box::new(Button::new()));
-//! InternalLens::new(children.get_mut(id), events)
+//! // This example simulates an implementation of `Interactive`, where `children` and
+//! // `gui_shared` are both arguments passed to init/update
+//! let id = children.insert(Box::new(Button::new()), &gui_shared);
+//! InternalLens::new(children.get_mut(id), gui_shared)
 //!     .chain(Widget::first_child)
 //!     .chain(TextField::text)
 //!     .put("Click me!".to_string());
 //! ```
 //!
+//!
 //! The same can be achieved in an application using `gui` in a similar way:
 //! ```
-//! use gui::{*, interactive::*, lens::*};
-//! # let mut gui = Gui::new(NoDrawer);
+//! # use gui::{*, interactive::*, lens::*};
+//! let mut gui = Gui::new(NoDrawer);
+//! gui.insert_in_root_with_alias(Button::new(), "my-button-id".to_string());
+//! // This is how an application would use WidgetLens
 //! WidgetLens::new(&mut gui, "my-button-id")
 //!     .chain(Widget::first_child)
 //!     .chain(TextField::text)
 //!     .put("Click me!".to_string());
+//!
+//! assert_eq!("Click me!",
+//!     WidgetLens::new(&mut gui, "my-button-id")
+//!         .chain(Widget::first_child)
+//!         .chain(TextField::text)
+//!         .get());
 //! ```
 //!
 //! Note that in place of `"my-button-id"`, `&str`, `String` or `Id` can be used
 //! - anything identification you have handy.
-//! The last lens in the chain must be
+//!
+//! It is also conceivable to use `InternalLens` in an application whenever you have a `&Widget` or
+//! `&mut Widget` rather than just an `Id` and thus do not require `Gui` for resolving the ID:
 //!
 //! New widgets that implement Interactive should `#[derive(Lens)]`.
 
@@ -64,6 +77,8 @@ pub trait LeafLens: Lens<Source = Widget> + Clone
 where
     Self::Target: PartialEq,
 {
+    /// Make a string that describes the target field. e.g. `TextField::text`
+    fn target(&self) -> String;
 }
 
 pub struct Chain<A, B> {
@@ -168,18 +183,18 @@ impl<'a, D: GuiDrawer, I: AsId<D>> LensDriver for WidgetLens<'a, D, I> {
     }
 }
 
-/// Used only internally in `Interactive`
-pub struct InternalLens<'a, 'b> {
+/// Used only internally in when implementing `Interactive`
+pub struct InternalLens<'a> {
     widget: &'a mut Widget,
-    events: &'b mut Vec<Event>,
+    gui: GuiShared,
 }
-impl<'a, 'b> InternalLens<'a, 'b> {
-    pub fn new(widget: &'a mut Widget, events: &'b mut Vec<Event>) -> Self {
-        Self { widget, events }
+impl<'a> InternalLens<'a> {
+    pub fn new(widget: &'a mut Widget, gui: GuiShared) -> Self {
+        Self { widget, gui }
     }
 }
 
-impl<'a, 'b> LensDriver for InternalLens<'a, 'b> {
+impl<'a> LensDriver for InternalLens<'a> {
     fn get_widget(&self) -> &Widget {
         &self.widget
     }
@@ -190,6 +205,8 @@ impl<'a, 'b> LensDriver for InternalLens<'a, 'b> {
     where
         F::Target: PartialEq,
     {
-        self.events.push(Event::change(self.widget.get_id(), lens))
+        self.gui
+            .borrow_mut()
+            .push_event(Event::change(self.widget.get_id(), lens))
     }
 }
