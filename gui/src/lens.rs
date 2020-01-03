@@ -81,6 +81,26 @@ where
     fn target(&self) -> String;
 }
 
+/// Support operations on widgets. Implementors will store Id or &mut Widget internally
+pub trait LensDriver {
+    fn get_widget(&self) -> &Widget;
+    fn get_widget_mut(&mut self) -> &mut Widget;
+    fn push_event<F: LeafLens>(&mut self, lens: F)
+    where
+        F::Target: PartialEq;
+
+    fn chain<L: Lens>(self, lens: L) -> Chain<Self, L>
+    where
+        Self: Sized,
+        L: Sized,
+    {
+        Chain {
+            driver: self,
+            child_lens: lens,
+        }
+    }
+}
+
 pub struct Chain<A, B> {
     driver: A,
     child_lens: B,
@@ -130,26 +150,6 @@ where
         F::Target: PartialEq,
     {
         self.driver.push_event(lens)
-    }
-}
-
-/// Support operations on widgets. Implementors will store Id or &mut Widget internally
-pub trait LensDriver {
-    fn get_widget(&self) -> &Widget;
-    fn get_widget_mut(&mut self) -> &mut Widget;
-    fn push_event<F: LeafLens>(&mut self, lens: F)
-    where
-        F::Target: PartialEq;
-
-    fn chain<L: Lens>(self, lens: L) -> Chain<Self, L>
-    where
-        Self: Sized,
-        L: Sized,
-    {
-        Chain {
-            driver: self,
-            child_lens: lens,
-        }
     }
 }
 

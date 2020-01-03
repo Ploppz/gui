@@ -229,7 +229,7 @@ impl Widget {
         for child in self.children.values_mut() {
             let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
             if new_pos != child.pos {
-                events.push(Event::change(self.id, Widget::pos));
+                events.push(Event::change(child.id, Widget::pos));
                 child.pos = new_pos;
             }
             child.update_top_down(events);
@@ -237,7 +237,7 @@ impl Widget {
     }
 
     /// Recursively updates the position of children, and updates size of `self` if applicable.
-    /// Additionally, updates sizes of text fields with the help of the `GuiDrawer`
+    /// Additionally, updates sizes of text fields using `GuiDrawer`
     pub(crate) fn layout_alg<D: GuiDrawer>(
         &mut self,
         gui: GuiShared,
@@ -311,9 +311,12 @@ impl Widget {
         let mut new_size = self.size;
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
 
-        /* TODO
-        self.update_size_if_text_field(drawer, ctx);
-        */
+        if self.inner.is::<TextField>() {
+            let lens = InternalLens::new(self, gui.clone()).chain(TextField::text); // unfortunately have to keep it in scope
+            let text = lens.get();
+
+            new_size = drawer.text_size(text, ctx);
+        }
 
         let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
         match size_hint[main_axis] {
@@ -334,23 +337,7 @@ impl Widget {
                 .push_event(Event::change(self.id, Widget::size));
         }
     }
-    /* TODO
-    /// Change size (to external) if self is a text field whose text has changed.
-    fn update_size_if_text_field<D: GuiDrawer>(&mut self, drawer: &D, ctx: &mut D::Context) {
-        if self.changed {
-            // TODO would be convenient with lenses here, if they return `Result`
-            if child.inner.is::<TextField>() {
-                let text = &child
-                    .inner
-                    .downcast_ref::<TextField>()
-                    .unwrap()
-                    .text;
-                let text_size = drawer.text_size(text, ctx);
-                self.config.set_size(text_size.0, text_size.1);
-            }
-        }
-    }
-    */
+
     pub fn recursive_children_iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Widget> + 'a> {
         Box::new(
             self.children.values().chain(

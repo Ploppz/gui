@@ -46,8 +46,9 @@ impl GuiDrawer for NoDrawer {
     ) -> Vec<WidgetOp> {
         Vec::new()
     }
-    fn text_size(&self, _text: &str, _ctx: &mut Self::Context) -> (f32, f32) {
-        (0.0, 0.0)
+    fn text_size(&self, text: &str, _ctx: &mut Self::Context) -> (f32, f32) {
+        // NOTE:
+        (10.0 * text.len() as f32, 10.0)
     }
 }
 

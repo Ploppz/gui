@@ -36,20 +36,17 @@ impl TestFixture {
                 gui.insert_in_root_with_alias(ToggleButton::new(), id.clone());
                 id
             };
+            WidgetLens::new(&mut gui, id.clone())
+                .chain(Widget::first_child)
+                .chain(TextField::text)
+                .put("text".to_string());
 
-            // Set text field size (simulates rendering)
-            gui.get_mut(&id)
-                .children
-                .values_mut()
-                .next()
-                .unwrap()
-                .config
-                .set_size(50.0, 50.0);
+            let text_size = NoDrawer.text_size("text", &mut ());
 
             let expected_size = (
                 // some extra padding of buttons
-                50.0 + 6.0 * 2.0,
-                50.0 + 4.0 * 2.0,
+                text_size.0 + 6.0 * 2.0,
+                text_size.1 + 4.0 * 2.0,
             );
 
             expected.insert(
@@ -119,6 +116,23 @@ fn test_fixture_expectation() {
     let mut fix = TestFixture::fixture();
     fix.update();
     fix.update();
+    print_widget_tree(&fix.gui, |w| {
+        let alias =
+            fix.gui
+                .aliases
+                .iter()
+                .find_map(|(alias, id)| if *id == w.get_id() { Some(alias) } else { None });
+        if let Some(alias) = alias {
+            let expected = &fix.expected[alias];
+            format!(
+                "pos{:?} vs{:?} - size{:?} vs{:?}",
+                w.pos, expected.pos, w.size, expected.size
+            )
+        } else {
+            format!("pos{:?} - size{:?}", w.pos, w.size)
+        }
+    });
+    /*
     for (id, expected) in fix.expected.iter() {
         let w = fix.gui.get(id.as_str());
         println!(
@@ -131,6 +145,7 @@ fn test_fixture_expectation() {
             (w.config.size_hint_x, w.config.size_hint_y)
         );
     }
+    */
     for (id, expected) in fix.expected.iter() {
         let real = fix.gui.get(id.as_str());
         assert_eq!(expected.pos, real.pos);
@@ -194,21 +209,24 @@ fn print_fixture_widget_tree() {
     // just once and for all show it
     use std::io::Write;
     writeln!(&mut std::io::stdout(), "TestFixture widget tree:").unwrap();
-    print_widget_tree(&TestFixture::fixture().gui);
+    print_widget_tree(&TestFixture::fixture().gui, |w| {
+        format!("      pos{:?} size{:?}", w.pos, w.size)
+    });
 }
 use ptree::{output::print_tree, TreeBuilder};
-pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
+pub fn print_widget_tree<D: GuiDrawer, F: Fn(&Widget) -> String>(gui: &Gui<D>, info: F) {
     let aliases = gui
         .aliases
         .iter()
         .map(|(k, v)| (*v, k.clone()))
         .collect::<IndexMap<usize, String>>();
     let mut tree = TreeBuilder::new(gui.root.get_id().to_string());
-    fn recurse<E: GuiDrawer>(
+    fn recurse<E: GuiDrawer, F: Fn(&Widget) -> String>(
         tree: &mut TreeBuilder,
         w: &Widget,
         gui: &Gui<E>,
         aliases: &IndexMap<usize, String>,
+        info: &F,
     ) {
         for child in w.children.values() {
             let name = if let Some(alias) = aliases.get(&child.get_id()) {
@@ -216,12 +234,13 @@ pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
             } else {
                 child.get_id().to_string()
             };
+            let name = format!("{} {}", name, info(child));
             tree.begin_child(name);
-            recurse(tree, &child, gui, aliases);
+            recurse(tree, &child, gui, aliases, info);
             tree.end_child();
         }
     }
-    recurse(&mut tree, &gui.root, &gui, &aliases);
+    recurse(&mut tree, &gui.root, &gui, &aliases, &info);
     let tree = tree.build();
 
     print_tree(&tree).unwrap();
