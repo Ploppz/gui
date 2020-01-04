@@ -109,6 +109,10 @@ impl<D: GuiDrawer> Gui<D> {
     pub fn shared_ref(&self) -> &GuiShared {
         &self.internal
     }
+    /// Constructs a [`LensDriver`] to access a widget given by `id`
+    pub fn access<I: AsId<D>>(&mut self, id: I) -> WidgetLens<D, I> {
+        WidgetLens::new(self, id)
+    }
 
     /// # Removal of widgets
     /// Removal of widgets is done through the `GuiInternal` struct given in the update function

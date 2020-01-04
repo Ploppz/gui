@@ -70,7 +70,9 @@ impl Interactive for DropdownButton {
                         for (i, option) in self.options.iter().enumerate() {
                             let id = children.insert(Box::new(Button::new()), &gui);
 
-                            InternalLens::new(children.get_mut(id), gui.clone())
+                            children
+                                .get_mut(id)
+                                .access(gui.clone())
                                 .chain(Widget::first_child)
                                 .chain(TextField::text)
                                 .put(option.name.clone());
@@ -88,11 +90,11 @@ impl Interactive for DropdownButton {
                 if *kind == EventKind::Press {
                     let opt = self.options[*opt_idx].clone();
                     let btn = children.get_mut(self.main_button_id);
-                    InternalLens::new(btn, gui.clone())
+                    btn.access(gui.clone())
                         .chain(Widget::first_child)
                         .chain(TextField::text)
                         .put(opt.name.clone());
-                    InternalLens::new(btn, gui.clone())
+                    btn.access(gui.clone())
                         .chain(ToggleButton::state)
                         .put(false);
 

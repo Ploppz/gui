@@ -115,7 +115,7 @@ pub struct Widget {
 }
 
 impl Widget {
-    pub fn new(id: Id, mut widget: Box<dyn Interactive>, gui: GuiShared) -> Widget {
+    pub(crate) fn new(id: Id, mut widget: Box<dyn Interactive>, gui: GuiShared) -> Widget {
         let mut children = IndexMap::new();
         let mut proxy = ChildrenProxy {
             self_id: id,
@@ -139,6 +139,11 @@ impl Widget {
     /// Remove child for real - only for internal use.
     pub(crate) fn remove(&mut self, id: Id) -> Option<()> {
         self.children.remove(&id).map(drop)
+    }
+
+    /// Creates a lens to access this widget.
+    pub fn access(&mut self, gui: GuiShared) -> InternalLens {
+        InternalLens::new(self, gui)
     }
     pub fn children(&self) -> &IndexMap<Id, Widget> {
         &self.children
