@@ -85,7 +85,7 @@ where
 pub trait LensDriver {
     fn get_widget(&self) -> &Widget;
     fn get_widget_mut(&mut self) -> &mut Widget;
-    fn push_event<F: LeafLens>(&mut self, lens: F)
+    fn push_event<F: LeafLens>(&mut self, id: Id, lens: F)
     where
         F::Target: PartialEq;
 
@@ -124,11 +124,14 @@ where
     B::Target: PartialEq,
 {
     pub fn put(&mut self, value: B::Target) -> &mut Self {
-        let target = self.child_lens.get_mut(self.driver.get_widget_mut());
+        let (id, target) = {
+            let widget = self.driver.get_widget_mut();
+            (widget.get_id(), self.child_lens.get_mut(widget))
+        };
         let equal = *target == value;
         if !equal {
             *target = value;
-            self.driver.push_event(self.child_lens.clone());
+            self.driver.push_event(id, self.child_lens.clone());
         }
         self
     }
@@ -145,11 +148,11 @@ where
     fn get_widget_mut(&mut self) -> &mut Widget {
         self.child_lens.get_mut(self.driver.get_widget_mut())
     }
-    fn push_event<F: LeafLens>(&mut self, lens: F)
+    fn push_event<F: LeafLens>(&mut self, id: Id, lens: F)
     where
         F::Target: PartialEq,
     {
-        self.driver.push_event(lens)
+        self.driver.push_event(id, lens)
     }
 }
 
@@ -171,11 +174,10 @@ impl<'a, D: GuiDrawer, I: AsId<D>> LensDriver for WidgetLens<'a, D, I> {
     fn get_widget_mut(&mut self) -> &mut Widget {
         self.gui.get_mut(self.id.clone())
     }
-    fn push_event<F: LeafLens>(&mut self, lens: F)
+    fn push_event<F: LeafLens>(&mut self, id: Id, lens: F)
     where
         F::Target: PartialEq,
     {
-        let id = self.id.resolve(&self.gui).unwrap();
         self.gui
             .internal
             .borrow_mut()
@@ -201,12 +203,10 @@ impl<'a> LensDriver for InternalLens<'a> {
     fn get_widget_mut(&mut self) -> &mut Widget {
         &mut self.widget
     }
-    fn push_event<F: LeafLens>(&mut self, lens: F)
+    fn push_event<F: LeafLens>(&mut self, id: Id, lens: F)
     where
         F::Target: PartialEq,
     {
-        self.gui
-            .borrow_mut()
-            .push_event(Event::change(self.widget.get_id(), lens))
+        self.gui.borrow_mut().push_event(Event::change(id, lens))
     }
 }

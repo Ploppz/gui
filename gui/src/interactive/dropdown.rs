@@ -56,16 +56,11 @@ impl Interactive for DropdownButton {
     ) {
         // Always ensure that all children have the same width
 
-        for Event { id, kind } in local_events
-            .iter()
-            .map(Clone::clone)
-            .collect::<Vec<_>>()
-            .iter()
-        {
+        for Event { id, kind } in local_events.iter().cloned() {
             // Toggle dropdown list
-            if *id == self.main_button_id {
+            if id == self.main_button_id {
                 if kind.is_change(ToggleButton::state) {
-                    let toggled = children[id].downcast_ref::<ToggleButton>().unwrap().state;
+                    let toggled = children[&id].downcast_ref::<ToggleButton>().unwrap().state;
                     if toggled {
                         for (i, option) in self.options.iter().enumerate() {
                             let id = children.insert(Box::new(Button::new()), &gui);
@@ -86,8 +81,8 @@ impl Interactive for DropdownButton {
                 }
             }
 
-            if let Some(opt_idx) = self.opt_map.get(id) {
-                if *kind == EventKind::Press {
+            if let Some(opt_idx) = self.opt_map.get(&id) {
+                if kind == EventKind::Press {
                     let opt = self.options[*opt_idx].clone();
                     let btn = children.get_mut(self.main_button_id);
                     btn.access(gui.clone())

@@ -81,6 +81,7 @@ pub enum SizeHint {
 }
 impl Default for SizeHint {
     fn default() -> Self {
-        SizeHint::External(10.0)
+        // SizeHint::External(10.0)
+        SizeHint::Minimize
     }
 }
