@@ -111,6 +111,7 @@ impl TestFixture {
     }
     */
 }
+
 #[test]
 fn test_fixture_expectation() {
     let mut fix = TestFixture::fixture();

@@ -1,4 +1,6 @@
 use gui::{interactive::*, lens::*, test_common::*, *};
+use slog::{o, Discard, Logger};
+use winput::Input;
 
 #[test]
 fn test_idempotent_positioning() {
@@ -8,6 +10,59 @@ fn test_idempotent_positioning() {
     for _ in 0..4 {
         let (e, _) = fix.update();
         assert_eq!(e.len(), 0);
+    }
+}
+#[test]
+fn test_idempotent_positioning2() {
+    // this one has only a dropdown button which is clicked
+    let log = Logger::root(Discard, o!());
+    let mut input = Input::default();
+    let mut gui = Gui::new(NoDrawer);
+    gui.insert_in_root_with_alias(
+        DropdownButton::new()
+            .option("one".to_string(), "one".to_string())
+            .option("two".to_string(), "two".to_string()),
+        "A".to_string(),
+    );
+    gui.update(&input, log.clone(), &mut ());
+
+    // TODO: if we used our own coordinate struct with operators it would be easier
+    let pos = gui
+        .access("A")
+        .chain(Widget::first_child)
+        .chain(Widget::pos)
+        .get()
+        .clone();
+    let size = gui
+        .access("A")
+        .chain(Widget::first_child)
+        .chain(Widget::pos)
+        .get()
+        .clone();
+    let click_pos = (pos.0 + size.0 / 2.0, pos.1 + size.1 / 2.0);
+
+    input.register_mouse_position(click_pos.0, click_pos.1);
+
+    press_left_mouse(&mut input);
+    let (events, _) = gui.update(&input, log.clone(), &mut ());
+    assert!(events.len() != 0);
+    release_left_mouse(&mut input);
+    let (events, _) = gui.update(&input, log.clone(), &mut ());
+    assert!(events.len() != 0);
+    let mut has_made_new_widgets = false;
+    for event in events {
+        has_made_new_widgets |= event.kind == EventKind::New;
+    }
+    assert!(has_made_new_widgets);
+    // if any of the above asserts fail it might mean we failed to press the button
+    println!("Should be done now");
+
+    // the aim of this test is to test whether the layout alg completes in one single update, after
+    // a dropdown button has been clicked. (dropdown button selected because its logic adds new
+    // widgets)
+    for _ in 0..4 {
+        let (events, _) = gui.update(&input, log.clone(), &mut ());
+        assert_eq!(events.len(), 0);
     }
 }
 
@@ -110,4 +165,46 @@ fn test_gui_paths() {
             fix.gui.get_mut(id).downcast_mut::<Button>().unwrap();
         }
     }
+}
+
+// TEMPORARY
+
+use gui::{GuiDrawer, Widget};
+pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
+    use indexmap::IndexMap;
+    use ptree::{output::print_tree, TreeBuilder};
+    let aliases = gui
+        .aliases
+        .iter()
+        .map(|(k, v)| (*v, k.clone()))
+        .collect::<IndexMap<usize, String>>();
+    let mut tree = TreeBuilder::new(gui.root.get_id().to_string());
+    fn recurse<E: GuiDrawer>(
+        tree: &mut TreeBuilder,
+        w: &Widget,
+        gui: &Gui<E>,
+        aliases: &IndexMap<usize, String>,
+    ) {
+        for child in w.children().values() {
+            let alias = if let Some(alias) = aliases.get(&child.get_id()) {
+                format!(" \"{}\"", alias)
+            } else {
+                String::new()
+            };
+            let name = format!(
+                "{}{}      pos{:?} size{:?}",
+                child.get_id(),
+                alias,
+                child.pos,
+                child.size
+            );
+            tree.begin_child(name);
+            recurse(tree, &child, gui, aliases);
+            tree.end_child();
+        }
+    }
+    recurse(&mut tree, &gui.root, &gui, &aliases);
+    let tree = tree.build();
+
+    print_tree(&tree).unwrap();
 }

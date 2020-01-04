@@ -317,25 +317,26 @@ impl Widget {
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
 
         if self.inner.is::<TextField>() {
-            let lens = InternalLens::new(self, gui.clone()).chain(TextField::text); // unfortunately have to keep it in scope
+            let lens = self.access(gui.clone()).chain(TextField::text); // unfortunately have to keep the lens in scope
             let text = lens.get();
 
             new_size = drawer.text_size(text, ctx);
+        } else {
+            let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
+            match size_hint[main_axis] {
+                SizeHint::Minimize => new_size[main_axis] = layout_progress,
+                SizeHint::External(s) => new_size[main_axis] = s,
+            }
+            match size_hint[cross_axis] {
+                SizeHint::Minimize => {
+                    new_size[cross_axis] = cross_size
+                        + self.config.padding_min[cross_axis]
+                        + self.config.padding_max[cross_axis]
+                }
+                SizeHint::External(s) => new_size[cross_axis] = s,
+            }
         }
 
-        let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
-        match size_hint[main_axis] {
-            SizeHint::Minimize => new_size[main_axis] = layout_progress,
-            SizeHint::External(s) => new_size[main_axis] = s,
-        }
-        match size_hint[cross_axis] {
-            SizeHint::Minimize => {
-                new_size[cross_axis] = cross_size
-                    + self.config.padding_min[cross_axis]
-                    + self.config.padding_max[cross_axis]
-            }
-            SizeHint::External(s) => new_size[cross_axis] = s,
-        }
         if new_size != self.size {
             self.size = new_size;
             gui.borrow_mut()
