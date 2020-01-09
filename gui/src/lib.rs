@@ -13,6 +13,7 @@ extern crate derive_deref;
 use indexmap::IndexMap;
 use winput::Input;
 
+pub mod default;
 mod gui;
 pub mod interactive;
 pub mod lens;

@@ -1,17 +1,6 @@
 use crate::*;
 use mopa::Any;
 
-mod button;
-mod container;
-mod dropdown;
-mod text;
-
-pub use button::*;
-pub use container::*;
-pub use dropdown::*;
-pub use text::*;
-// pub use radio::*;
-
 /// An interactive component/node in the tree of widgets that defines a GUI. This is the trait that
 /// all different widgets, such as buttons, checkboxes, containers, `Gui` itself, healthbars, ...,
 /// implement.

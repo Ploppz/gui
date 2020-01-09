@@ -69,7 +69,7 @@ pub enum Anchor {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SizeHint {
-    /// Size is given externally - by application or rendering.
+    /// Size is given externally by application.
     /// In this case, size is not touched by `gui`.
     /// For example, a text field's size is determined by the render engine.
     External(f32),
