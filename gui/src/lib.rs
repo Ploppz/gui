@@ -1,5 +1,18 @@
 #![feature(type_alias_impl_trait)]
 //! # Gui
+//! A GUI crate that is completely agnostic of rendering and application.
+//!
+//! Rendering is done through the [GuiDrawer] trait, which receives events from [Gui], and is able
+//! to query [Gui] for widgets.
+//!
+//! Especially in the context of computer games, many applications require their own unique
+//! appearance also in the user interface.
+//! The thought is thus that [GuiDrawer] can be implemented anew for each such application; but a
+//! default drawer (or multiple, for multiple backends) can be provided by `gui`.
+//!
+//! ## just an idea
+//! could make a GuiDrawer that emits primitives (for example SVG primitives or something), which
+//! is intercepted somewhere else by some renderer
 //!
 //! ## Layout
 //! The *main axis* is the axis along which widgets are stacked. The other axis is called the
@@ -25,6 +38,7 @@ pub use interactive::Interactive;
 pub use placement::*;
 pub use widget::*;
 
+use gui_derive::LensInternal;
 use interactive::*;
 use lens::*;
 
@@ -34,7 +48,7 @@ pub type Id = usize;
 
 use std::any::TypeId;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct FieldId(TypeId);
 
 impl FieldId {
@@ -56,22 +70,6 @@ impl FieldId {
     }
     pub fn is_size(&self) -> bool {
         self.is(Widget::size)
-    }
-}
-// TODO: temporary, for easier development
-impl std::fmt::Debug for FieldId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        if *self == FieldId::of(Widget::pos) {
-            write!(f, "Widget::pos")
-        } else if *self == FieldId::of(Widget::size) {
-            write!(f, "Widget::size")
-        } else if *self == FieldId::of(TextField::text) {
-            write!(f, "TextField::text")
-        } else if *self == FieldId::of(ToggleButton::state) {
-            write!(f, "ToggleButton::state")
-        } else {
-            write!(f, "(unknown)")
-        }
     }
 }
 

@@ -1,15 +1,23 @@
 use crate::*;
 
-#[derive(Lens, Debug)]
-pub struct TextField {
+pub trait TextFieldStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static {}
+
+#[derive(LensInternal, Debug)]
+pub struct TextField<Style> {
+    #[lens]
     pub text: String,
+    // TODO (idea): lens that is not a LeafLens but can be further chained with fields of Style
+    pub style: Style,
 }
-impl TextField {
-    pub fn new(text: String) -> TextField {
-        TextField { text }
+impl<Style: TextFieldStyle> TextField<Style> {
+    pub fn new(text: String) -> TextField<Style> {
+        TextField {
+            text,
+            style: Style::default(),
+        }
     }
 }
-impl Interactive for TextField {
+impl<Style: TextFieldStyle> Interactive for TextField<Style> {
     fn captures(&self) -> Capture {
         Capture {
             mouse: false,

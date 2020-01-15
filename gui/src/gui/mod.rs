@@ -93,7 +93,7 @@ pub struct Gui<D> {
 impl<D: GuiDrawer> Gui<D> {
     pub fn new(drawer: D) -> Gui<D> {
         let internal = Rc::new(RefCell::new(GuiInternal::new()));
-        let mut root = Widget::new(ROOT, Box::new(Container::new()), internal.clone());
+        let mut root = Widget::new(ROOT, Box::new(Root), internal.clone());
         root.config = root.config.placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
@@ -332,5 +332,16 @@ fn update_paths_recurse(current_path: Vec<Id>, w: &mut Widget, paths: &mut Index
         let mut child_path = current_path.clone();
         child_path.push(child.get_id());
         update_paths_recurse(child_path, child, paths);
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Root;
+impl Interactive for Root {
+    fn captures(&self) -> Capture {
+        Capture {
+            mouse: false,
+            keyboard: false,
+        }
     }
 }

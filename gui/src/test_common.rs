@@ -1,8 +1,14 @@
+use crate::default;
 use crate::*;
 use slog::{o, Discard, Logger};
 use std::collections::HashMap;
 use winit::event::{ElementState, ModifiersState, MouseButton};
 use winput::{Input, MouseInput};
+
+pub type TextField = default::TextField<()>;
+pub type Button = default::Button<()>;
+pub type ToggleButton = default::ToggleButton<()>;
+pub type DropdownButton = default::DropdownButton<()>;
 
 pub struct Expected {
     size: (f32, f32),
@@ -29,7 +35,6 @@ impl TestFixture {
         for i in 0..10 {
             let id = if i < 5 {
                 let id: String = format!("Button {}", i);
-                gui.insert_in_root_with_alias(Button::new(), id.clone());
                 id
             } else {
                 let id: String = format!("ToggleButton {}", i - 5);

@@ -1,17 +1,29 @@
-#![allow(non_upper_case_globals)]
+use super::*;
 use crate::*;
 use interactive::*;
 
+pub trait ButtonStyle: StyleBound {
+    /// Style of contained text field
+    type TextField: TextFieldStyle;
+}
+
 #[derive(Debug)]
-pub struct Button {}
-impl Button {
-    pub fn new() -> Button {
-        Button {}
+pub struct Button<Style> {
+    pub style: Style,
+}
+impl<Style: ButtonStyle> Button<Style> {
+    pub fn new() -> Button<Style> {
+        Button {
+            style: Style::default(),
+        }
     }
 }
-impl Interactive for Button {
+impl<Style: ButtonStyle> Interactive for Button<Style> {
     fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(String::new())), gui);
+        children.insert(
+            Box::new(TextField::<Style::TextField>::new(String::new())),
+            gui,
+        );
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)
@@ -25,18 +37,26 @@ impl Interactive for Button {
     }
 }
 
-#[derive(Lens, Debug)]
-pub struct ToggleButton {
+#[derive(LensInternal, Debug)]
+pub struct ToggleButton<Style> {
+    #[lens]
     pub state: bool,
+    pub style: Style,
 }
-impl ToggleButton {
-    pub fn new() -> ToggleButton {
-        ToggleButton { state: false }
+impl<Style: ButtonStyle> ToggleButton<Style> {
+    pub fn new() -> ToggleButton<Style> {
+        ToggleButton {
+            state: false,
+            style: Style::default(),
+        }
     }
 }
-impl Interactive for ToggleButton {
+impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
     fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
-        children.insert(Box::new(TextField::new(String::new())), gui);
+        children.insert(
+            Box::new(TextField::<Style::TextField>::new(String::new())),
+            gui,
+        );
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .padding(4.0, 4.0, 6.0, 6.0)

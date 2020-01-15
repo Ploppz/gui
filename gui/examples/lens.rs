@@ -1,10 +1,10 @@
-use gui::{interactive::*, lens::*, *};
+use gui::{default::*, interactive::*, lens::*, *};
 fn main() {
     let mut gui = Gui::new(NoDrawer);
-    gui.insert_in_root_with_alias(ToggleButton::new(), "A".to_string());
+    gui.insert_in_root_with_alias(ToggleButton::<()>::new(), "A".to_string());
     WidgetLens::new(&mut gui, "A")
         .chain(Widget::first_child)
-        .chain(TextField::text)
+        .chain(TextField::<()>::text)
         .put("Hey".to_string());
 
     println!(
@@ -21,7 +21,7 @@ fn main() {
         "\nText: {}",
         WidgetLens::new(&mut gui, "A")
             .chain(Widget::first_child)
-            .chain(TextField::text)
+            .chain(TextField::<()>::text)
             .get()
     );
 }

@@ -316,7 +316,8 @@ impl Widget {
         let mut new_size = self.size;
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
 
-        self.determine_size(drawer, ctx);
+        // self.determine_size(drawer, ctx);
+        // ^ TODO (problem putting it in Interactive: requires
 
         /*
         if self.inner.is::<TextField>() {
@@ -421,6 +422,7 @@ impl WidgetConfig {
     }
     pub fn set_placement(&mut self, place: Placement) -> &mut Self {
         self.place = Some(place);
+        self
     }
     pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
         self.size_hint_x = x;

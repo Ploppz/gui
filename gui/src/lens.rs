@@ -31,7 +31,7 @@
 //!
 //! The same can be achieved in an application using `gui` in a similar way:
 //! ```
-//! # use gui::{*, interactive::*, lens::*};
+//! # use gui::{*, lens::*};
 //! let mut gui = Gui::new(NoDrawer);
 //! gui.insert_in_root_with_alias(Button::new(), "my-button-id".to_string());
 //! // This is how an application would use WidgetLens
@@ -71,7 +71,7 @@ pub trait Lens: 'static {
 }
 
 /// A lens to accesses a certain field on a widget.
-/// It should exclusively be used as a step in a [lens2::Chain].
+/// It should exclusively be used as a step in a [lens::Chain].
 /// For more examples, look to the implementation of widgets like [DropdownButton].
 pub trait LeafLens: Lens<Source = Widget> + Clone
 where
