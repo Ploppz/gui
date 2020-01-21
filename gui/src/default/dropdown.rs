@@ -117,6 +117,18 @@ impl<Style: DropdownButtonStyle> Interactive for DropdownButton<Style> {
             }
         }
     }
+
+    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+        let mut max_x = None;
+        let mut max_y = None;
+        for DropdownOption { name, value: _ } in &self.options {
+            let (x, y) = drawer.text_size(&name);
+            max_x = max_x.or(Some(x)).map(|max_x| max_x.max(x));
+            max_y = max_y.or(Some(y)).map(|max_y| max_y.max(y));
+        }
+        max_y.and_then(|max_y| max_x.and_then(|max_x| Some((max_x, max_y))))
+    }
+
     fn captures(&self) -> Capture {
         Capture {
             mouse: true,
