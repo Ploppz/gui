@@ -23,6 +23,15 @@ pub struct DropdownButton<Style> {
     pub style: Style,
 }
 impl<Style: DropdownButtonStyle> DropdownButton<Style> {
+    pub fn new() -> DropdownButton<Style> {
+        DropdownButton {
+            options: Vec::new(),
+            value: None,
+            opt_map: IndexMap::new(),
+            main_button_id: 0,
+            style: Style::default(),
+        }
+    }
     pub fn option(mut self, name: String, value: String) -> Self {
         self.options.push(DropdownOption { name, value });
         self

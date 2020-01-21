@@ -1,5 +1,4 @@
-/*
-use gui::{interactive::*, lens::*, test_common::*, *};
+use gui::{lens::*, test_common::*, *};
 use slog::{o, Discard, Logger};
 use winput::Input;
 
@@ -209,4 +208,3 @@ pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
 
     print_tree(&tree).unwrap();
 }
-*/

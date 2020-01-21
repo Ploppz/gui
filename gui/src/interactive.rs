@@ -44,5 +44,12 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
         let (top, bot, right, left) = (y, y + h, x + w, x);
         mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
     }
+
+    /// If the widget has some sort of intrinsic size, returns Some.
+    /// Anything whose real size depends on the drawer (text, sprites, ..).
+    /// Default returns None.
+    fn determine_size(&self, _drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+        None
+    }
 }
 mopafy!(Interactive);

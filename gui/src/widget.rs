@@ -316,31 +316,23 @@ impl Widget {
         let mut new_size = self.size;
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
 
-        // self.determine_size(drawer, ctx);
-        // ^ TODO (problem putting it in Interactive: requires
-
-        /*
-        if self.inner.is::<TextField>() {
-            let lens = self.access(gui.clone()).chain(TextField::text); // unfortunately have to keep the lens in scope
-            let text = lens.get();
-
-            new_size = drawer.text_size(text, ctx);
+        if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
+            new_size = intrinsic_size;
         } else {
-        */
-        let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
-        match size_hint[main_axis] {
-            SizeHint::Minimize => new_size[main_axis] = layout_progress,
-            SizeHint::External(s) => new_size[main_axis] = s,
-        }
-        match size_hint[cross_axis] {
-            SizeHint::Minimize => {
-                new_size[cross_axis] = cross_size
-                    + self.config.padding_min[cross_axis]
-                    + self.config.padding_max[cross_axis]
+            let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
+            match size_hint[main_axis] {
+                SizeHint::Minimize => new_size[main_axis] = layout_progress,
+                SizeHint::External(s) => new_size[main_axis] = s,
             }
-            SizeHint::External(s) => new_size[cross_axis] = s,
+            match size_hint[cross_axis] {
+                SizeHint::Minimize => {
+                    new_size[cross_axis] = cross_size
+                        + self.config.padding_min[cross_axis]
+                        + self.config.padding_max[cross_axis]
+                }
+                SizeHint::External(s) => new_size[cross_axis] = s,
+            }
         }
-        // }
 
         if new_size != self.size {
             self.size = new_size;
@@ -485,7 +477,6 @@ impl<'a> ChildrenProxy<'a> {
 
             // Emit event
             gui.push_event(Event::new(id, EventKind::New));
-            println!("EMIT New for {}", id);
             // Update paths
             let path = if self.self_id == 1 {
                 vec![]

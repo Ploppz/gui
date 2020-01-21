@@ -26,9 +26,7 @@ pub fn derive_lens(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(LensInternal, attributes(lens))]
 pub fn derive_lens_internal(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
-    let x = lenses::derive_lens_impl(input, Ident::new("crate", Span::call_site()))
+    lenses::derive_lens_impl(input, Ident::new("crate", Span::call_site()))
         .unwrap_or_else(|err| err.to_compile_error())
-        .into();
-    println!("{}", x);
-    x
+        .into()
 }

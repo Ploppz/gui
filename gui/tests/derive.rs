@@ -50,15 +50,10 @@ fn test_lenses() {
     let mut gui = Gui::new(NoDrawer);
     gui.insert_in_root_with_alias(Bar::<i32>::new(0), "abc".to_string());
     // This is how an application would use WidgetLens
-    WidgetLens::new(&mut gui, "abc")
-        .chain(Widget::first_child)
-        .chain(DefaultBar::a)
-        .put(2);
+    WidgetLens::new(&mut gui, "abc").chain(DefaultBar::a).put(2);
+
     assert_eq!(
         2,
-        *WidgetLens::new(&mut gui, "abc")
-            .chain(Widget::first_child)
-            .chain(DefaultBar::a)
-            .get()
+        *WidgetLens::new(&mut gui, "abc").chain(DefaultBar::a).get()
     )
 }

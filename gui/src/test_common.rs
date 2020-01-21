@@ -35,6 +35,7 @@ impl TestFixture {
         for i in 0..10 {
             let id = if i < 5 {
                 let id: String = format!("Button {}", i);
+                gui.insert_in_root_with_alias(Button::new(), id.clone());
                 id
             } else {
                 let id: String = format!("ToggleButton {}", i - 5);

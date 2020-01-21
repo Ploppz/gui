@@ -13,37 +13,37 @@
 //! in changes the text of said button by first getting its first child (which is a TextField), and
 //! then getting the `text` field of the `TextField`.
 //! ```
-//! # use gui::{*, interactive::*, lens::*};
+//! # use gui::{*, interactive::*, lens::*, default::*};
 //! # use indexmap::IndexMap;
 //! # let mut gui = Gui::new(NoDrawer);
 //! # let gui_shared = gui.shared();
-//! # let mut parent_id = gui.insert_in_root(Container::new());
+//! # let mut parent_id = gui.insert_in_root(Container::<()>::new());
 //! # let mut children = gui.get_mut(parent_id).children_proxy();
 //! // This example simulates an implementation of `Interactive`, where `children` and
 //! // `gui_shared` are both arguments passed to init/update
-//! let id = children.insert(Box::new(Button::new()), &gui_shared);
+//! let id = children.insert(Box::new(Button::<()>::new()), &gui_shared);
 //! InternalLens::new(children.get_mut(id), gui_shared)
 //!     .chain(Widget::first_child)
-//!     .chain(TextField::text)
+//!     .chain(TextField::<()>::text)
 //!     .put("Click me!".to_string());
 //! ```
 //!
 //!
 //! The same can be achieved in an application using `gui` in a similar way:
 //! ```
-//! # use gui::{*, lens::*};
+//! # use gui::{*, lens::*, default::*};
 //! let mut gui = Gui::new(NoDrawer);
-//! gui.insert_in_root_with_alias(Button::new(), "my-button-id".to_string());
+//! gui.insert_in_root_with_alias(Button::<()>::new(), "my-button-id".to_string());
 //! // This is how an application would use WidgetLens
 //! WidgetLens::new(&mut gui, "my-button-id")
 //!     .chain(Widget::first_child)
-//!     .chain(TextField::text)
+//!     .chain(TextField::<()>::text)
 //!     .put("Click me!".to_string());
 //!
 //! assert_eq!("Click me!",
 //!     WidgetLens::new(&mut gui, "my-button-id")
 //!         .chain(Widget::first_child)
-//!         .chain(TextField::text)
+//!         .chain(TextField::<()>::text)
 //!         .get());
 //! ```
 //!

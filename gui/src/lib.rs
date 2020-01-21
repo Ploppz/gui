@@ -39,7 +39,6 @@ pub use placement::*;
 pub use widget::*;
 
 use gui_derive::LensInternal;
-use interactive::*;
 use lens::*;
 
 pub mod test_common;

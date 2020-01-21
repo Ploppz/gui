@@ -29,7 +29,6 @@ fn derive_struct(
     // `lens_where_clauses`)
     let syn::Generics {
         params: ref generic_params,
-        ref where_clause,
         ..
     } = input.generics;
 
@@ -136,9 +135,9 @@ fn derive_struct(
             pub struct #lens_name <#generic_params> {
                 #(#markers_def),*
             }
-            impl <#generic_params> #cr::lens::Lens for #twizzled_name::#lens_name <#generic_params>
+            impl <#generic_params> #cr::lens::Lens for #lens_name <#generic_params>
                 where #(#lens_where_clauses)*,
-                    #ty<#generic_params>: Interactive
+                    super::#ty<#generic_params>: #cr::Interactive
             {
                 type Source = #cr::Widget;
                 type Target = #field_ty;
@@ -152,9 +151,9 @@ fn derive_struct(
                         .#field_name
                 }
             }
-            impl <#generic_params> #cr::lens::LeafLens for #twizzled_name::#lens_name <#generic_params>
+            impl <#generic_params> #cr::lens::LeafLens for #lens_name <#generic_params>
                 where #(#lens_where_clauses)*,
-                    #ty<#generic_params>: Interactive
+                    super::#ty<#generic_params>: #cr::Interactive
             {
                 fn target(&self) -> String {
                     #target_str.to_string()

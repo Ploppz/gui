@@ -24,6 +24,37 @@ pub trait GuiDrawer: Sized {
     ) -> Vec<WidgetOp>;
     /// Determine size of rendered text without rendering it.
     fn text_size(&self, text: &str, ctx: &mut Self::Context) -> (f32, f32);
+
+    /// Make an object that borrows from self and implements the same interface but with the
+    /// `Context` internally and not in the interface.
+    fn context_free<'a, 'b>(
+        &'a self,
+        ctx: &'b mut Self::Context,
+    ) -> GuiDrawerWithContext<'a, 'b, Self> {
+        GuiDrawerWithContext {
+            drawer: self,
+            ctx: ctx,
+        }
+    }
+}
+
+pub trait ContextFreeGuiDrawer {
+    fn text_size(&mut self, text: &str) -> (f32, f32);
+}
+
+/// Contains references to the GuiDrawer as well as its context, and thus provides a `GuiDrawer`
+/// interface where `type Context = ()` (kinda erases the context from the interface and moves it
+/// internally).
+/// This struct is used primarily as a parameter to functions of `trait Interactive`.
+pub struct GuiDrawerWithContext<'a, 'b, D: GuiDrawer> {
+    drawer: &'a D,
+    ctx: &'b mut D::Context,
+}
+impl<'a, 'b, D: GuiDrawer> ContextFreeGuiDrawer for GuiDrawerWithContext<'a, 'b, D> {
+    /// Determine size of rendered text without rendering it.
+    fn text_size(&mut self, text: &str) -> (f32, f32) {
+        self.drawer.text_size(text, self.ctx)
+    }
 }
 
 /// Empty implementor of GuiDrawer, for a headless Gui.

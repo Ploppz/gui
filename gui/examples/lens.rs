@@ -1,4 +1,4 @@
-use gui::{default::*, interactive::*, lens::*, *};
+use gui::{default::*, lens::*, *};
 fn main() {
     let mut gui = Gui::new(NoDrawer);
     gui.insert_in_root_with_alias(ToggleButton::<()>::new(), "A".to_string());

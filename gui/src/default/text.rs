@@ -1,6 +1,8 @@
+use super::*;
 use crate::*;
+use interactive::*;
 
-pub trait TextFieldStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static {}
+pub trait TextFieldStyle: StyleBound {}
 
 #[derive(LensInternal, Debug)]
 pub struct TextField<Style> {
@@ -23,5 +25,8 @@ impl<Style: TextFieldStyle> Interactive for TextField<Style> {
             mouse: false,
             keyboard: false,
         }
+    }
+    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+        Some(drawer.text_size(&self.text))
     }
 }

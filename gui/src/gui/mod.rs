@@ -85,7 +85,8 @@ impl GuiInternal {
 pub struct Gui<D> {
     pub root: Widget,
     screen: (f32, f32),
-    drawer: D,
+    // Why option: need to take it out of Gui when we call GuiDrawer::update
+    drawer: Option<D>,
     pub aliases: IndexMap<String, Id>,
     pub internal: Rc<RefCell<GuiInternal>>,
 }
@@ -97,7 +98,7 @@ impl<D: GuiDrawer> Gui<D> {
         root.config = root.config.placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
-            drawer,
+            drawer: Some(drawer),
             screen: (0.0, 0.0),
             internal,
             aliases: IndexMap::new(),
@@ -112,88 +113,6 @@ impl<D: GuiDrawer> Gui<D> {
     /// Constructs a [`LensDriver`] to access a widget given by `id`
     pub fn access<I: AsId<D>>(&mut self, id: I) -> WidgetLens<D, I> {
         WidgetLens::new(self, id)
-    }
-
-    /// # Removal of widgets
-    /// Removal of widgets is done through the `GuiInternal` struct given in the update function
-    /// of widgets. This only maintains a list of `Id`s of widget to be deleted. At the very start of
-    /// `Gui::update`, these widgets are deleted. Thus, for all `Id`s found in the events returned by
-    /// `Gui::update`, it is guaranteed that the widget exists - until the next call to
-    /// `Gui::update`.
-    pub fn update(
-        &mut self,
-        input: &Input,
-        log: Logger,
-        ctx: &mut D::Context,
-    ) -> (Vec<Event>, Capture) {
-        let mouse = self.drawer.transform_mouse(input.get_mouse_position(), ctx);
-        let (sw, sh) = self.drawer.window_size(ctx);
-        self.root.config.set_size(sw, sh);
-
-        // Delete widgets that were marked for deletion last frame
-        {
-            let to_remove =
-                std::mem::replace(&mut self.internal.borrow_mut().to_remove, Vec::new());
-            for id_to_remove in to_remove {
-                let parent_id = self.parent(id_to_remove);
-                let parent = self.get_mut(parent_id);
-                parent.remove(id_to_remove);
-            }
-        }
-
-        // 3 traversals
-        let capture = self
-            .root
-            .update_bottom_up(input, sw, sh, mouse, &self.internal, log.clone());
-        self.root
-            .layout_alg(self.internal.clone(), &self.drawer, ctx);
-        self.root
-            .update_top_down(&mut self.internal.borrow_mut().events);
-
-        // Update parent relations
-        {
-            let mut internal = self.internal.borrow_mut();
-            internal.paths = IndexMap::new();
-            update_paths_recurse(vec![], &mut self.root, &mut internal.paths);
-        }
-
-        // Emit Remove events (without removing widgets)
-        {
-            // (move `to_remove` out and back in again)
-            let to_remove =
-                std::mem::replace(&mut self.internal.borrow_mut().to_remove, Vec::new());
-            to_remove
-                .iter()
-                .flat_map(|to_remove_id| {
-                    self.get(*to_remove_id)
-                        .recursive_children_iter()
-                        .map(|descendant| descendant.get_id())
-                        .chain(std::iter::once(*to_remove_id))
-                })
-                .for_each(|id| {
-                    self.internal
-                        .borrow_mut()
-                        .push_event(Event::new(id, EventKind::Removed))
-                });
-            // TODO ^ will probably panic
-            std::mem::replace(&mut self.internal.borrow_mut().to_remove, to_remove);
-        }
-
-        let events = std::mem::replace(&mut self.internal.borrow_mut().events, Vec::new());
-
-        let ops = self.drawer.update(self, &events, log, ctx);
-        for op in ops {
-            match op {
-                WidgetOp::Resize { id, size } => {
-                    self.get_mut(id).config.set_size(size.0, size.1);
-                    self.internal
-                        .borrow_mut()
-                        .push_event(Event::change(id, Widget::size));
-                }
-            }
-        }
-
-        (events, capture)
     }
     pub fn insert<I: AsId<D>, W: Interactive>(&mut self, parent_id: I, widget: W) -> Option<Id> {
         self.insert_internal(parent_id, Box::new(widget))
@@ -314,6 +233,94 @@ impl<D: GuiDrawer> Gui<D> {
     // TODO immutable version
     pub fn widgets_mut(&mut self, f: &mut dyn FnMut(&mut Widget)) {
         recursive_children_mut(&mut self.root, f)
+    }
+
+    /// # Removal of widgets
+    /// Removal of widgets is done through the `GuiInternal` struct given in the update function
+    /// of widgets. This only maintains a list of `Id`s of widget to be deleted. At the very start of
+    /// `Gui::update`, these widgets are deleted. Thus, for all `Id`s found in the events returned by
+    /// `Gui::update`, it is guaranteed that the widget exists - until the next call to
+    /// `Gui::update`.
+    pub fn update(
+        &mut self,
+        input: &Input,
+        log: Logger,
+        ctx: &mut D::Context,
+    ) -> (Vec<Event>, Capture) {
+        let mouse = self
+            .drawer
+            .as_mut()
+            .unwrap()
+            .transform_mouse(input.get_mouse_position(), ctx);
+        let (sw, sh) = self.drawer.as_mut().unwrap().window_size(ctx);
+        self.root.config.set_size(sw, sh);
+
+        // Delete widgets that were marked for deletion last frame
+        {
+            let to_remove =
+                std::mem::replace(&mut self.internal.borrow_mut().to_remove, Vec::new());
+            for id_to_remove in to_remove {
+                let parent_id = self.parent(id_to_remove);
+                let parent = self.get_mut(parent_id);
+                parent.remove(id_to_remove);
+            }
+        }
+
+        // 3 traversals
+        let capture = self
+            .root
+            .update_bottom_up(input, sw, sh, mouse, &self.internal, log.clone());
+        self.root
+            .layout_alg(self.internal.clone(), self.drawer.as_ref().unwrap(), ctx);
+        self.root
+            .update_top_down(&mut self.internal.borrow_mut().events);
+
+        // Update parent relations
+        {
+            let mut internal = self.internal.borrow_mut();
+            internal.paths = IndexMap::new();
+            update_paths_recurse(vec![], &mut self.root, &mut internal.paths);
+        }
+
+        // Emit Remove events (without removing widgets)
+        {
+            // (move `to_remove` out and back in again)
+            let to_remove =
+                std::mem::replace(&mut self.internal.borrow_mut().to_remove, Vec::new());
+            to_remove
+                .iter()
+                .flat_map(|to_remove_id| {
+                    self.get(*to_remove_id)
+                        .recursive_children_iter()
+                        .map(|descendant| descendant.get_id())
+                        .chain(std::iter::once(*to_remove_id))
+                })
+                .for_each(|id| {
+                    self.internal
+                        .borrow_mut()
+                        .push_event(Event::new(id, EventKind::Removed))
+                });
+            // TODO ^ will probably panic
+            std::mem::replace(&mut self.internal.borrow_mut().to_remove, to_remove);
+        }
+
+        let events = std::mem::replace(&mut self.internal.borrow_mut().events, Vec::new());
+
+        let drawer = self.drawer.take().unwrap();
+        let ops = drawer.update(self, &events, log, ctx);
+        self.drawer = Some(drawer);
+        for op in ops {
+            match op {
+                WidgetOp::Resize { id, size } => {
+                    self.get_mut(id).config.set_size(size.0, size.1);
+                    self.internal
+                        .borrow_mut()
+                        .push_event(Event::change(id, Widget::size));
+                }
+            }
+        }
+
+        (events, capture)
     }
 }
 
