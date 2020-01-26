@@ -39,16 +39,16 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`
     /// is the very center of the widget. However, this is configurable in case a finer shape is
     /// desired (e.g. round things).
-    fn inside(&self, pos: (f32, f32), size: (f32, f32), mouse: (f32, f32)) -> bool {
-        let (x, y, w, h) = (pos.0, pos.1, size.0, size.1);
-        let (top, bot, right, left) = (y, y + h, x + w, x);
-        mouse.1 < bot && mouse.1 > top && mouse.0 > left && mouse.0 < right
+    fn inside(&self, pos: Vec2, size: Vec2, mouse: Vec2) -> bool {
+        let min = pos;
+        let max = pos + size;
+        mouse.y < max.y && mouse.y > min.y && mouse.x > min.x && mouse.x < max.x
     }
 
     /// If the widget has some sort of intrinsic size, returns Some.
     /// Anything whose real size depends on the drawer (text, sprites, ..).
     /// Default returns None.
-    fn determine_size(&self, _drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+    fn determine_size(&self, _drawer: &mut dyn ContextFreeGuiDrawer) -> Option<Vec2> {
         None
     }
 }

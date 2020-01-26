@@ -13,8 +13,8 @@ use slog::Logger;
 
 pub trait GuiDrawer: Sized {
     type Context;
-    fn window_size(&self, ctx: &mut Self::Context) -> (f32, f32);
-    fn transform_mouse(&self, m: (f32, f32), ctx: &mut Self::Context) -> (f32, f32);
+    fn window_size(&self, ctx: &mut Self::Context) -> Vec2;
+    fn transform_mouse(&self, m: Vec2, ctx: &mut Self::Context) -> Vec2;
     fn update(
         &self,
         gui: &Gui<Self>,
@@ -23,7 +23,7 @@ pub trait GuiDrawer: Sized {
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
     /// Determine size of rendered text without rendering it.
-    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> (f32, f32);
+    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> Vec2;
 
     /// Make an object that borrows from self and implements the same interface but with the
     /// `Context` internally and not in the interface.
@@ -39,7 +39,7 @@ pub trait GuiDrawer: Sized {
 }
 
 pub trait ContextFreeGuiDrawer {
-    fn text_size(&mut self, text: &str) -> (f32, f32);
+    fn text_size(&mut self, text: &str) -> Vec2;
 }
 
 /// Contains references to the GuiDrawer as well as its context, and thus provides a `GuiDrawer`
@@ -52,7 +52,7 @@ pub struct GuiDrawerWithContext<'a, 'b, D: GuiDrawer> {
 }
 impl<'a, 'b, D: GuiDrawer> ContextFreeGuiDrawer for GuiDrawerWithContext<'a, 'b, D> {
     /// Determine size of rendered text without rendering it.
-    fn text_size(&mut self, text: &str) -> (f32, f32) {
+    fn text_size(&mut self, text: &str) -> Vec2 {
         self.drawer.text_size(text, self.ctx)
     }
 }
@@ -62,10 +62,10 @@ impl<'a, 'b, D: GuiDrawer> ContextFreeGuiDrawer for GuiDrawerWithContext<'a, 'b,
 pub struct NoDrawer;
 impl GuiDrawer for NoDrawer {
     type Context = ();
-    fn window_size(&self, _ctx: &mut Self::Context) -> (f32, f32) {
-        (0.0, 0.0)
+    fn window_size(&self, _ctx: &mut Self::Context) -> Vec2 {
+        Vec2::zero()
     }
-    fn transform_mouse(&self, m: (f32, f32), _ctx: &mut Self::Context) -> (f32, f32) {
+    fn transform_mouse(&self, m: Vec2, _ctx: &mut Self::Context) -> Vec2 {
         m
     }
     fn update(
@@ -77,12 +77,11 @@ impl GuiDrawer for NoDrawer {
     ) -> Vec<WidgetOp> {
         Vec::new()
     }
-    fn text_size(&self, text: &str, _ctx: &mut Self::Context) -> (f32, f32) {
-        // NOTE:
-        (10.0 * text.len() as f32, 10.0)
+    fn text_size(&self, text: &str, _ctx: &mut Self::Context) -> Vec2 {
+        Vec2::new(10.0 * text.len() as f32, 10.0)
     }
 }
 
 pub enum WidgetOp {
-    Resize { id: Id, size: (f32, f32) },
+    Resize { id: Id, size: Vec2 },
 }

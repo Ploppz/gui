@@ -27,7 +27,7 @@ macro_rules! children_proxy {
 pub struct PosLens;
 impl Lens for PosLens {
     type Source = Widget;
-    type Target = (f32, f32);
+    type Target = Vec2;
     fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
         &source.pos
     }
@@ -45,7 +45,7 @@ impl LeafLens for PosLens {
 pub struct SizeLens;
 impl Lens for SizeLens {
     type Source = Widget;
-    type Target = (f32, f32);
+    type Target = Vec2;
     fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
         &source.pos
     }
@@ -88,15 +88,15 @@ pub struct Widget {
     /// Current absolute position as calculated by layout algorithm.
     /// Any mutation to `pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
-    pub pos: (f32, f32),
+    pub pos: Vec2,
     /// Current relative (to parent) position as calculated by layout algorithm
     /// Any mutation to `rel_pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
-    pub rel_pos: (f32, f32),
+    pub rel_pos: Vec2,
     /// Current size as calculated by layout algorithm
     /// Any mutation to `size` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
-    pub size: (f32, f32),
+    pub size: Vec2,
 
     pub config: WidgetConfig,
 
@@ -125,9 +125,9 @@ impl Widget {
         Widget {
             inner: widget,
             children,
-            pos: (0.0, 0.0),
-            rel_pos: (0.0, 0.0),
-            size: (10.0, 10.0),
+            pos: Vec2::zero(),
+            rel_pos: Vec2::zero(),
+            size: Vec2::new(10.0, 10.0),
             config,
             gui,
 
@@ -183,7 +183,7 @@ impl Widget {
         input: &Input,
         sw: f32,
         sh: f32,
-        mouse: (f32, f32),
+        mouse: Vec2,
         gui: &GuiShared,
         log: Logger,
     ) -> Capture {
@@ -232,7 +232,7 @@ impl Widget {
     pub(crate) fn update_top_down(&mut self, events: &mut Vec<Event>) {
         let pos = self.pos;
         for child in self.children.values_mut() {
-            let new_pos = (pos.0 + child.rel_pos.0, pos.1 + child.rel_pos.1);
+            let new_pos = pos + child.rel_pos;
             if new_pos != child.pos {
                 events.push(Event::change(child.id, Widget::pos));
                 child.pos = new_pos;
@@ -261,37 +261,35 @@ impl Widget {
         let size = self.size;
         let layout_align = self.config.layout_align;
         let layout_main_margin = self.config.layout_main_margin;
-        let padding_min = self.config.padding_min;
+        let padding_min = self.config.padding.min;
 
         let (main_axis, cross_axis) = (
             self.config.layout_direction,
             self.config.layout_direction.other(),
         );
 
-        let mut layout_progress = self.config.padding_min[main_axis];
+        let mut layout_progress = self.config.padding.min[main_axis];
         // max width/height along cross axis
         let mut cross_size = 0.0;
 
         for child in self.children.values_mut() {
-            let mut child_relative_pos = (0.0, 0.0);
+            let mut child_relative_pos = Vec2::zero();
             if let Some(place) = child.config.place {
                 // Child does not participate in layout
-                child_relative_pos = (
-                    match place.x {
-                        PlacementAxis::Fixed(x) => match place.x_anchor {
-                            Anchor::Min => x,
-                            Anchor::Center => (size.0 - child.size.0) / 2.0 + x,
-                            Anchor::Max => size.0 - child.size.0 - x,
-                        },
+                child_relative_pos.x = match place.x {
+                    PlacementAxis::Fixed(x) => match place.x_anchor {
+                        Anchor::Min => x,
+                        Anchor::Center => (size.x - child.size.x) / 2.0 + x,
+                        Anchor::Max => size.x - child.size.x - x,
                     },
-                    match place.y {
-                        PlacementAxis::Fixed(y) => match place.y_anchor {
-                            Anchor::Min => y,
-                            Anchor::Center => (size.1 - child.size.1) / 2.0 + y,
-                            Anchor::Max => size.1 - child.size.1 - y,
-                        },
+                };
+                child_relative_pos.y = match place.y {
+                    PlacementAxis::Fixed(y) => match place.y_anchor {
+                        Anchor::Min => y,
+                        Anchor::Center => (size.y - child.size.y) / 2.0 + y,
+                        Anchor::Max => size.y - child.size.y - y,
                     },
-                );
+                };
             } else {
                 // Layout algorithm
                 child_relative_pos[main_axis] = layout_progress;
@@ -311,7 +309,7 @@ impl Widget {
         }
         // because it should only be _between_ children - not after the last one
         layout_progress -= layout_main_margin;
-        layout_progress += self.config.padding_max[main_axis];
+        layout_progress += self.config.padding.max[main_axis];
 
         let mut new_size = self.size;
         // println!("[positioning {}] pre size {:?}", self.id, new_size);
@@ -319,16 +317,15 @@ impl Widget {
         if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
             new_size = intrinsic_size;
         } else {
-            let size_hint = (self.config.size_hint_x, self.config.size_hint_y);
-            match size_hint[main_axis] {
+            match self.config.size_hint[main_axis] {
                 SizeHint::Minimize => new_size[main_axis] = layout_progress,
                 SizeHint::External(s) => new_size[main_axis] = s,
             }
-            match size_hint[cross_axis] {
+            match self.config.size_hint[cross_axis] {
                 SizeHint::Minimize => {
                     new_size[cross_axis] = cross_size
-                        + self.config.padding_min[cross_axis]
-                        + self.config.padding_max[cross_axis]
+                        + self.config.padding.min[cross_axis]
+                        + self.config.padding.max[cross_axis]
                 }
                 SizeHint::External(s) => new_size[cross_axis] = s,
             }
@@ -367,15 +364,10 @@ pub struct WidgetConfig {
     /// TODO: should maybe be a "justify" enum where you can choose to space them evenly etc
     pub layout_main_margin: f32,
 
-    // padding
-    /// left and top padding respectively
-    pub padding_min: (f32, f32),
-    /// right and bot padding respectively
-    pub padding_max: (f32, f32),
+    pub padding: Rect,
 
     // size hints
-    pub size_hint_x: SizeHint,
-    pub size_hint_y: SizeHint,
+    pub size_hint: Vec2<SizeHint>,
 }
 impl Default for WidgetConfig {
     fn default() -> Self {
@@ -386,11 +378,9 @@ impl Default for WidgetConfig {
             layout_align: Anchor::Min,
             layout_main_margin: 0.0,
 
-            padding_min: (0.0, 0.0),
-            padding_max: (0.0, 0.0),
+            padding: Rect::zero(),
 
-            size_hint_x: SizeHint::default(),
-            size_hint_y: SizeHint::default(),
+            size_hint: Vec2::default(),
         }
     }
 }
@@ -417,33 +407,32 @@ impl WidgetConfig {
         self
     }
     pub fn size_hint(mut self, x: SizeHint, y: SizeHint) -> Self {
-        self.size_hint_x = x;
-        self.size_hint_y = y;
+        self.size_hint = Vec2::new(x, y);
         self
     }
     /// Fixed width
     pub fn width(mut self, w: f32) -> Self {
-        self.size_hint_x = SizeHint::External(w);
+        self.size_hint.x = SizeHint::External(w);
         self
     }
     /// Fixed height
     pub fn height(mut self, h: f32) -> Self {
-        self.size_hint_y = SizeHint::External(h);
+        self.size_hint.y = SizeHint::External(h);
         self
     }
     pub fn set_size(&mut self, w: f32, h: f32) {
-        self.size_hint_x = SizeHint::External(w);
-        self.size_hint_y = SizeHint::External(h);
+        self.size_hint.x = SizeHint::External(w);
+        self.size_hint.y = SizeHint::External(h);
     }
     pub fn set_width(&mut self, w: f32) {
-        self.size_hint_x = SizeHint::External(w);
+        self.size_hint.x = SizeHint::External(w);
     }
     pub fn set_height(&mut self, h: f32) {
-        self.size_hint_y = SizeHint::External(h);
+        self.size_hint.y = SizeHint::External(h);
     }
     pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
-        self.padding_min = (left, top);
-        self.padding_max = (right, bot);
+        self.padding.min = Vec2::new(left, top);
+        self.padding.max = Vec2::new(right, bot);
         self
     }
 }

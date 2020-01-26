@@ -1,4 +1,3 @@
-#![feature(type_alias_impl_trait)]
 //! # Gui
 //! A GUI crate that is completely agnostic of rendering and application.
 //!
@@ -31,6 +30,7 @@ mod gui;
 pub mod interactive;
 pub mod lens;
 pub mod placement;
+pub mod vec;
 pub mod widget;
 
 pub use self::gui::*;
@@ -40,6 +40,7 @@ pub use widget::*;
 
 use gui_derive::LensInternal;
 use lens::*;
+use vec::*;
 
 pub mod test_common;
 
@@ -136,24 +137,5 @@ impl std::ops::BitOrAssign for Capture {
     fn bitor_assign(&mut self, rhs: Self) {
         self.mouse |= rhs.mouse;
         self.keyboard |= rhs.keyboard;
-    }
-}
-
-impl<T> std::ops::Index<Axis> for (T, T) {
-    type Output = T;
-    fn index(&self, idx: Axis) -> &T {
-        match idx {
-            Axis::X => &self.0,
-            Axis::Y => &self.1,
-        }
-    }
-}
-
-impl<T> std::ops::IndexMut<Axis> for (T, T) {
-    fn index_mut(&mut self, idx: Axis) -> &mut T {
-        match idx {
-            Axis::X => &mut self.0,
-            Axis::Y => &mut self.1,
-        }
     }
 }

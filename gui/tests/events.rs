@@ -19,7 +19,7 @@ fn test_idempotent_positioning2() {
     let mut input = Input::default();
     let mut gui = Gui::new(NoDrawer);
     gui.insert_in_root_with_alias(
-        DropdownButton::new()
+        Select::new()
             .option("one".to_string(), "one".to_string())
             .option("two".to_string(), "two".to_string()),
         "A".to_string(),
@@ -39,9 +39,9 @@ fn test_idempotent_positioning2() {
         .chain(Widget::pos)
         .get()
         .clone();
-    let click_pos = (pos.0 + size.0 / 2.0, pos.1 + size.1 / 2.0);
+    let click_pos = pos + size / 2.0;
 
-    input.register_mouse_position(click_pos.0, click_pos.1);
+    input.register_mouse_position(click_pos.x, click_pos.y);
 
     press_left_mouse(&mut input);
     let (events, _) = gui.update(&input, log.clone(), &mut ());
@@ -192,7 +192,7 @@ pub fn print_widget_tree<D: GuiDrawer>(gui: &Gui<D>) {
                 String::new()
             };
             let name = format!(
-                "{}{}      pos{:?} size{:?}",
+                "{}{}      pos={} size={}",
                 child.get_id(),
                 alias,
                 child.pos,

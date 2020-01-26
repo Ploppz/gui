@@ -8,11 +8,11 @@ use winput::{Input, MouseInput};
 pub type TextField = default::TextField<()>;
 pub type Button = default::Button<()>;
 pub type ToggleButton = default::ToggleButton<()>;
-pub type DropdownButton = default::DropdownButton<()>;
+pub type Select = default::Select<()>;
 
 pub struct Expected {
-    size: (f32, f32),
-    pos: (f32, f32),
+    size: Vec2,
+    pos: Vec2,
 }
 
 pub struct TestFixture {
@@ -33,15 +33,20 @@ impl TestFixture {
         let mut expected = HashMap::new();
         let mut expected_x = Self::PADDING;
         for i in 0..10 {
-            let id = if i < 5 {
-                let id: String = format!("Button {}", i);
-                gui.insert_in_root_with_alias(Button::new(), id.clone());
-                id
-            } else {
-                let id: String = format!("ToggleButton {}", i - 5);
-                gui.insert_in_root_with_alias(ToggleButton::new(), id.clone());
-                id
+            let id = match i {
+                0..=4 => {
+                    let id: String = format!("Button {}", i);
+                    gui.insert_in_root_with_alias(Button::new(), id.clone());
+                    id
+                }
+                5..=9 => {
+                    let id: String = format!("ToggleButton {}", i - 5);
+                    gui.insert_in_root_with_alias(ToggleButton::new(), id.clone());
+                    id
+                }
+                _ => unreachable!(),
             };
+
             WidgetLens::new(&mut gui, id.clone())
                 .chain(Widget::first_child)
                 .chain(TextField::text)
@@ -49,20 +54,17 @@ impl TestFixture {
 
             let text_size = NoDrawer.text_size("text", &mut ());
 
-            let expected_size = (
-                // some extra padding of buttons
-                text_size.0 + 6.0 * 2.0,
-                text_size.1 + 4.0 * 2.0,
-            );
+            // some extra padding of buttons
+            let expected_size = text_size + Vec2::<f32>::new(6.0 * 2.0, 4.0 * 2.0);
 
             expected.insert(
                 id.clone(),
                 Expected {
                     size: expected_size,
-                    pos: (expected_x, Self::PADDING),
+                    pos: Vec2::new(expected_x, Self::PADDING),
                 },
             );
-            expected_x += expected_size.0
+            expected_x += expected_size.x
         }
 
         Self {
@@ -81,9 +83,9 @@ impl TestFixture {
             print!("\t{:?}", event.kind);
             if let EventKind::Change { ref field } = event.kind {
                 if field.is_pos() {
-                    print!("\tpos={:?}", w.pos);
+                    print!("\tpos={}", w.pos);
                 } else if field.is_size() {
-                    print!("\tsize={:?}", w.size);
+                    print!("\tsize={}", w.size);
                 }
             }
             println!("\tid={}", event.id);
@@ -96,9 +98,9 @@ impl TestFixture {
     pub fn click_widget(&mut self, id: &str) -> ((Vec<Event>, Capture), (Vec<Event>, Capture)) {
         let pos = self.expected[id].pos;
         let size = self.expected[id].size;
-        let mouse_pos = (pos.0 + size.0 / 2.0, pos.1 + size.1 / 2.0);
+        let mouse_pos = pos + size / 2.0;
 
-        self.input.register_mouse_position(mouse_pos.0, mouse_pos.1);
+        self.input.register_mouse_position(mouse_pos.x, mouse_pos.y);
         press_left_mouse(&mut self.input);
         println!("[TestFixture] Press mouse {:?}", mouse_pos);
         let result1 = self.update();
@@ -132,11 +134,11 @@ fn test_fixture_expectation() {
         if let Some(alias) = alias {
             let expected = &fix.expected[alias];
             format!(
-                "pos{:?} vs{:?} - size{:?} vs{:?}",
+                "pos={} exp={} - size{} exp={}",
                 w.pos, expected.pos, w.size, expected.size
             )
         } else {
-            format!("pos{:?} - size{:?}", w.pos, w.size)
+            format!("pos={} - size={}", w.pos, w.size)
         }
     });
     /*

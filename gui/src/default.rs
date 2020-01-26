@@ -27,7 +27,7 @@ impl TextFieldStyle for () {}
 impl ButtonStyle for () {
     type TextField = ();
 }
-impl DropdownButtonStyle for () {
+impl SelectStyle for () {
     type TextField = ();
     type Button = ();
 }

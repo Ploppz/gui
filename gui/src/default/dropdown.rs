@@ -2,7 +2,7 @@ use super::*;
 use crate::*;
 use indexmap::IndexMap;
 
-pub trait DropdownButtonStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static {
+pub trait SelectStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static {
     type TextField: TextFieldStyle;
     type Button: ButtonStyle;
 }
@@ -14,7 +14,7 @@ pub struct DropdownOption {
 }
 
 #[derive(LensInternal, Debug)]
-pub struct DropdownButton<Style> {
+pub struct Select<Style> {
     options: Vec<DropdownOption>,
     value: Option<String>,
     /// map from ID to option index
@@ -22,9 +22,9 @@ pub struct DropdownButton<Style> {
     main_button_id: usize,
     pub style: Style,
 }
-impl<Style: DropdownButtonStyle> DropdownButton<Style> {
-    pub fn new() -> DropdownButton<Style> {
-        DropdownButton {
+impl<Style: SelectStyle> Select<Style> {
+    pub fn new() -> Select<Style> {
+        Select {
             options: Vec::new(),
             value: None,
             opt_map: IndexMap::new(),
@@ -47,7 +47,7 @@ impl<Style: DropdownButtonStyle> DropdownButton<Style> {
     }
 }
 
-impl<Style: DropdownButtonStyle> Interactive for DropdownButton<Style> {
+impl<Style: SelectStyle> Interactive for Select<Style> {
     fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
         let main_id = children.insert(
             Box::new(ToggleButton::<Style::Button>::new()) as Box<dyn Interactive>,
@@ -118,7 +118,8 @@ impl<Style: DropdownButtonStyle> Interactive for DropdownButton<Style> {
         }
     }
 
-    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+    /*
+    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<Vec2> {
         let mut max_x = None;
         let mut max_y = None;
         for DropdownOption { name, value: _ } in &self.options {
@@ -128,6 +129,7 @@ impl<Style: DropdownButtonStyle> Interactive for DropdownButton<Style> {
         }
         max_y.and_then(|max_y| max_x.and_then(|max_x| Some((max_x, max_y))))
     }
+    */
 
     fn captures(&self) -> Capture {
         Capture {

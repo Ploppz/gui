@@ -26,7 +26,7 @@ impl<Style: TextFieldStyle> Interactive for TextField<Style> {
             keyboard: false,
         }
     }
-    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<(f32, f32)> {
+    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<Vec2> {
         Some(drawer.text_size(&self.text))
     }
 }

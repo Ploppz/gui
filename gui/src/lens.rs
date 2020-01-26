@@ -72,7 +72,7 @@ pub trait Lens: 'static {
 
 /// A lens to accesses a certain field on a widget.
 /// It should exclusively be used as a step in a [lens::Chain].
-/// For more examples, look to the implementation of widgets like [DropdownButton].
+/// For more examples, look to the implementation of widgets like [Select].
 pub trait LeafLens: Lens<Source = Widget> + Clone
 where
     Self::Target: PartialEq,

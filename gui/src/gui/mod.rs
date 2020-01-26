@@ -251,8 +251,8 @@ impl<D: GuiDrawer> Gui<D> {
             .drawer
             .as_mut()
             .unwrap()
-            .transform_mouse(input.get_mouse_position(), ctx);
-        let (sw, sh) = self.drawer.as_mut().unwrap().window_size(ctx);
+            .transform_mouse(input.get_mouse_position().into(), ctx);
+        let Vec2 { x: sw, y: sh } = self.drawer.as_mut().unwrap().window_size(ctx);
         self.root.config.set_size(sw, sh);
 
         // Delete widgets that were marked for deletion last frame
@@ -312,7 +312,7 @@ impl<D: GuiDrawer> Gui<D> {
         for op in ops {
             match op {
                 WidgetOp::Resize { id, size } => {
-                    self.get_mut(id).config.set_size(size.0, size.1);
+                    self.get_mut(id).config.set_size(size.x, size.y);
                     self.internal
                         .borrow_mut()
                         .push_event(Event::change(id, Widget::size));
