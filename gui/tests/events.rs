@@ -26,20 +26,17 @@ fn test_idempotent_positioning2() {
     );
     gui.update(&input, log.clone(), &mut ());
 
-    // TODO: if we used our own coordinate struct with operators it would be easier
-    let pos = gui
+    let click_pos = *gui
         .access("A")
         .chain(Widget::first_child)
         .chain(Widget::pos)
         .get()
-        .clone();
-    let size = gui
-        .access("A")
-        .chain(Widget::first_child)
-        .chain(Widget::pos)
-        .get()
-        .clone();
-    let click_pos = pos + size / 2.0;
+        + *gui
+            .access("A")
+            .chain(Widget::first_child)
+            .chain(Widget::size)
+            .get()
+            / 2.0;
 
     input.register_mouse_position(click_pos.x, click_pos.y);
 
