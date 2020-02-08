@@ -53,10 +53,9 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
             Box::new(ToggleButton::<Style::Button>::new()) as Box<dyn Interactive>,
             gui,
         );
-        children.get_mut(main_id).config.set_height(24.0);
         self.main_button_id = main_id;
         WidgetConfig::default()
-            .padding(4.0, 4.0, 6.0, 6.0)
+            // .padding(4.0, 4.0, 6.0, 6.0)
             .layout(Axis::Y, false, Anchor::Min, 2.0)
     }
     fn update(

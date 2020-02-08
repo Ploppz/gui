@@ -24,9 +24,14 @@ impl<Style: ButtonStyle> Interactive for Button<Style> {
             Box::new(TextField::<Style::TextField>::new(String::new())),
             gui,
         );
+
+        // Layout the one child in X direction with vertical centering
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+            .layout_direction(Axis::X)
+            .layout_align(Anchor::Center)
             .padding(4.0, 4.0, 6.0, 6.0)
+            .height(DEFAULT_BUTTON_HEIGHT)
     }
 
     fn captures(&self) -> Capture {
@@ -57,9 +62,13 @@ impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
             Box::new(TextField::<Style::TextField>::new(String::new())),
             gui,
         );
+        // Layout the one child in X direction with vertical centering
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
+            .layout_direction(Axis::X)
+            .layout_align(Anchor::Center)
             .padding(4.0, 4.0, 6.0, 6.0)
+            .height(DEFAULT_BUTTON_HEIGHT)
     }
     fn update(
         &mut self,

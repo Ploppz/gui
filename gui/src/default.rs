@@ -17,6 +17,10 @@ pub use container::*;
 pub use dropdown::*;
 pub use text::*;
 
+/// Default height of buttons (this is always configurable at runtime through WidgetConfig of each
+/// widget)
+pub const DEFAULT_BUTTON_HEIGHT: f32 = 30.0;
+
 /// Really just a shortcut used internally (has to be `pub`). Ignore.
 pub trait StyleBound: Default + Send + Sync + Clone + std::fmt::Debug + 'static {}
 

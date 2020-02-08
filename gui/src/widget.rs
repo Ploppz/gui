@@ -398,6 +398,14 @@ impl WidgetConfig {
         self.layout_main_margin = self.layout_main_margin;
         self
     }
+    pub fn layout_direction(mut self, value: Axis) -> Self {
+        self.layout_direction = value;
+        self
+    }
+    pub fn layout_align(mut self, value: Anchor) -> Self {
+        self.layout_align = value;
+        self
+    }
     pub fn placement(mut self, place: Placement) -> Self {
         self.place = Some(place);
         self
