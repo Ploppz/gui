@@ -69,10 +69,7 @@ fn test_idempotence_in_select() {
             kind: EventKind::Press
         }));
 
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    println!("Events 2: {:#?}", events);
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    println!("Events 3: {:#?}", events);
+    new_frame(&mut input);
 
     let mut has_made_new_widgets = false;
     for event in &events {
@@ -83,45 +80,6 @@ fn test_idempotence_in_select() {
     // Setup is done, now test idemptence:
     println!("There should be no more events now");
     test_idempotence(&mut gui, &input, Some(events));
-}
-
-#[test]
-fn test_mouse_events() {
-    // ensure that mouse events only fire once per event (i.e. not every frame)
-    let log = Logger::root(Discard, o!());
-    let mut input = Input::default();
-    let mut gui = Gui::new(NoDrawer);
-    let id = gui.insert_in_root(Button::new());
-    gui.update(&input, log.clone(), &mut ());
-    let click_pos =
-        *gui.access(id).chain(Widget::pos).get() + *gui.access(id).chain(Widget::size).get() / 2.0;
-    input.register_mouse_position(click_pos.x, click_pos.y);
-    press_left_mouse(&mut input);
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    assert!(events.iter().any(|e| *e
-        == Event {
-            id,
-            kind: EventKind::Press
-        }));
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    assert!(!events.iter().any(|e| *e
-        == Event {
-            id,
-            kind: EventKind::Press
-        }));
-    release_left_mouse(&mut input);
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    assert!(events.iter().any(|e| *e
-        == Event {
-            id,
-            kind: EventKind::Release
-        }));
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
-    assert!(!events.iter().any(|e| *e
-        == Event {
-            id,
-            kind: EventKind::Release
-        }));
 }
 
 #[test]

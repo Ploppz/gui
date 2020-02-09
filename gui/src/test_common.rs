@@ -184,11 +184,24 @@ pub fn release_left_mouse(s: &mut Input) {
         MouseButton::Left,
     );
 }
+pub fn new_frame(s: &mut Input) {
+    s.prepare_for_next_frame();
+}
 pub fn mouse_pressed() -> MouseInput {
     MouseInput {
         state: ElementState::Pressed,
         modifiers: ModifiersState::default(),
     }
+}
+
+#[test]
+fn test_testing() {
+    // just validate some assumptions
+    let mut input = Input::default();
+    press_left_mouse(&mut input);
+    assert!(input.is_mouse_button_toggled_down(winit::event::MouseButton::Left));
+    new_frame(&mut input);
+    assert!(!input.is_mouse_button_toggled_down(winit::event::MouseButton::Left));
 }
 
 #[macro_export]
