@@ -7,8 +7,8 @@ use slog::Logger;
 use std::ops::Deref;
 use winput::Input;
 
-mod config;
-pub use config::WidgetConfig;
+mod layout;
+pub use layout::WidgetConfig;
 
 /// Macro is needed rather than a member function, in order to preserve borrow information:
 /// so that the compiler knows that only `self.children` is borrowed.
@@ -50,15 +50,32 @@ impl Lens for SizeLens {
     type Source = Widget;
     type Target = Vec2;
     fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
-        &source.pos
+        &source.size
     }
     fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
-        &mut source.pos
+        &mut source.size
     }
 }
 impl LeafLens for SizeLens {
     fn target(&self) -> String {
         "Widget::size".into()
+    }
+}
+#[derive(Clone)]
+pub struct IdLens;
+impl Lens for IdLens {
+    type Source = Widget;
+    type Target = Id;
+    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
+        &source.id
+    }
+    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
+        &mut source.id
+    }
+}
+impl LeafLens for IdLens {
+    fn target(&self) -> String {
+        "Widget::id".into()
     }
 }
 
@@ -80,6 +97,7 @@ impl Widget {
     pub const size: SizeLens = SizeLens;
     pub const pos: PosLens = PosLens;
     pub const first_child: FirstChildLens = FirstChildLens;
+    pub const id: IdLens = IdLens;
 }
 
 #[derive(Deref, DerefMut, Debug)]
@@ -241,103 +259,6 @@ impl Widget {
                 child.pos = new_pos;
             }
             child.update_top_down(events);
-        }
-    }
-
-    /// Recursively updates the position of children, and updates size of `self` if applicable.
-    /// Additionally, updates sizes of text fields using `GuiDrawer`
-    pub(crate) fn layout_alg<D: GuiDrawer>(
-        &mut self,
-        gui: GuiShared,
-        drawer: &D,
-        ctx: &mut D::Context,
-    ) {
-        for child in self.children.values_mut() {
-            // Recurse
-            child.layout_alg(gui.clone(), drawer, ctx);
-        }
-
-        // println!("Positioning Parent [{}]", self.id);
-        if self.config.layout_wrap {
-            unimplemented!()
-        }
-        let size = self.size;
-        let layout_align = self.config.layout_align;
-        let layout_main_margin = self.config.layout_main_margin;
-        let padding_min = self.config.padding.min;
-
-        let (main_axis, cross_axis) = (
-            self.config.layout_direction,
-            self.config.layout_direction.other(),
-        );
-
-        let mut layout_progress = self.config.padding.min[main_axis];
-        // max width/height along cross axis
-        let mut cross_size = 0.0;
-
-        for child in self.children.values_mut() {
-            let mut child_relative_pos = Vec2::zero();
-            if let Some(place) = child.config.place {
-                // Child does not participate in layout
-                child_relative_pos.x = match place.x {
-                    PlacementAxis::Fixed(x) => match place.x_anchor {
-                        Anchor::Min => x,
-                        Anchor::Center => (size.x - child.size.x) / 2.0 + x,
-                        Anchor::Max => size.x - child.size.x - x,
-                    },
-                };
-                child_relative_pos.y = match place.y {
-                    PlacementAxis::Fixed(y) => match place.y_anchor {
-                        Anchor::Min => y,
-                        Anchor::Center => (size.y - child.size.y) / 2.0 + y,
-                        Anchor::Max => size.y - child.size.y - y,
-                    },
-                };
-            } else {
-                // Layout algorithm
-                child_relative_pos[main_axis] = layout_progress;
-                layout_progress += child.size[main_axis] + layout_main_margin;
-                child_relative_pos[cross_axis] = match layout_align {
-                    Anchor::Min => padding_min[cross_axis],
-                    Anchor::Center => (size[cross_axis] - child.size[cross_axis]) / 2.0,
-                    Anchor::Max => unimplemented!(),
-                };
-                if child.size[cross_axis] > cross_size {
-                    cross_size = child.size[cross_axis]
-                }
-            };
-
-            // println!("Positioning Child [{}] relative_pos={:?}", child.id, child_relative_pos);
-            child.rel_pos = child_relative_pos;
-        }
-        // because it should only be _between_ children - not after the last one
-        layout_progress -= layout_main_margin;
-        layout_progress += self.config.padding.max[main_axis];
-
-        let mut new_size = self.size;
-        // println!("[positioning {}] pre size {:?}", self.id, new_size);
-
-        if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
-            new_size = intrinsic_size;
-        } else {
-            match self.config.size_hint[main_axis] {
-                SizeHint::Minimize => new_size[main_axis] = layout_progress,
-                SizeHint::External(s) => new_size[main_axis] = s,
-            }
-            match self.config.size_hint[cross_axis] {
-                SizeHint::Minimize => {
-                    new_size[cross_axis] = cross_size
-                        + self.config.padding.min[cross_axis]
-                        + self.config.padding.max[cross_axis]
-                }
-                SizeHint::External(s) => new_size[cross_axis] = s,
-            }
-        }
-
-        if new_size != self.size {
-            self.size = new_size;
-            gui.borrow_mut()
-                .push_event(Event::change(self.id, Widget::size));
         }
     }
 

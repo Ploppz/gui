@@ -9,12 +9,12 @@
 //!
 mod button;
 mod container;
-mod dropdown;
+mod select;
 mod text;
 
 pub use button::*;
 pub use container::*;
-pub use dropdown::*;
+pub use select::*;
 pub use text::*;
 
 /// Default height of buttons (this is always configurable at runtime through WidgetConfig of each

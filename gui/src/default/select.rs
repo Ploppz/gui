@@ -8,14 +8,14 @@ pub trait SelectStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DropdownOption {
+pub struct SelectOption {
     pub name: String,
     pub value: String,
 }
 
 #[derive(LensInternal, Debug)]
 pub struct Select<Style> {
-    options: Vec<DropdownOption>,
+    options: Vec<SelectOption>,
     value: Option<String>,
     /// map from ID to option index
     opt_map: IndexMap<Id, usize>,
@@ -33,7 +33,7 @@ impl<Style: SelectStyle> Select<Style> {
         }
     }
     pub fn option(mut self, name: String, value: String) -> Self {
-        self.options.push(DropdownOption { name, value });
+        self.options.push(SelectOption { name, value });
         self
     }
     pub fn close(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) {
@@ -121,7 +121,7 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
     fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<Vec2> {
         let mut max_x = None;
         let mut max_y = None;
-        for DropdownOption { name, value: _ } in &self.options {
+        for SelectOption { name, value: _ } in &self.options {
             let (x, y) = drawer.text_size(&name);
             max_x = max_x.or(Some(x)).map(|max_x| max_x.max(x));
             max_y = max_y.or(Some(y)).map(|max_y| max_y.max(y));

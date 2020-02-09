@@ -54,8 +54,12 @@ impl TestFixture {
 
             let text_size = NoDrawer.text_size("text", &mut ());
 
-            // some extra padding of buttons
-            let expected_size = text_size + Vec2::<f32>::new(6.0 * 2.0, 4.0 * 2.0);
+            // expected button size.
+            // Per now, buttons have constant height, and padding in X axis
+            let expected_size = Vec2::<f32>::new(
+                text_size.x + 6.0 * 2.0, // 6.0 padding on two sides
+                crate::default::DEFAULT_BUTTON_HEIGHT,
+            );
 
             expected.insert(
                 id.clone(),

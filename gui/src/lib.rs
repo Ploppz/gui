@@ -48,7 +48,7 @@ pub type Id = usize;
 
 use std::any::TypeId;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq)]
 pub struct FieldId(TypeId);
 
 impl FieldId {
@@ -70,6 +70,26 @@ impl FieldId {
     }
     pub fn is_size(&self) -> bool {
         self.is(Widget::size)
+    }
+    pub fn is_id(&self) -> bool {
+        self.is(Widget::id)
+    }
+}
+
+// TODO: temporary for easier development. Not guaranteed to be exhaustive
+impl std::fmt::Debug for FieldId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        if *self == FieldId::of(Widget::pos) {
+            write!(f, "Widget::pos")
+        } else if *self == FieldId::of(Widget::size) {
+            write!(f, "Widget::size")
+        } else if *self == FieldId::of(default::TextField::<()>::text) {
+            write!(f, "TextField::text")
+        } else if *self == FieldId::of(default::ToggleButton::<()>::state) {
+            write!(f, "ToggleButton::state")
+        } else {
+            write!(f, "(unknown)")
+        }
     }
 }
 

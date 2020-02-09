@@ -79,7 +79,7 @@ impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
     ) {
         for event in local_events {
             if id == event.id {
-                if let EventKind::Release = event.kind {
+                if let EventKind::Press = event.kind {
                     self.state = !self.state;
                     gui.borrow_mut()
                         .push_event(Event::change(event.id, Self::state));
