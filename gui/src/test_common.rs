@@ -10,21 +10,75 @@ pub type Button = default::Button<()>;
 pub type ToggleButton = default::ToggleButton<()>;
 pub type Select = default::Select<()>;
 
+#[derive(Deref, DerefMut)]
+pub struct TestGui {
+    #[deref_target]
+    pub gui: Gui<NoDrawer>,
+    pub input: Input,
+    pub log: Logger,
+}
+impl TestGui {
+    pub fn new() -> Self {
+        TestGui {
+            log: Logger::root(Discard, o!()),
+            gui: Gui::new(NoDrawer),
+            input: Input::default(),
+        }
+    }
+    fn update_internal(&mut self) -> (Vec<Event>, Capture) {
+        let (events, capture) = self.gui.update(&self.input, self.log.clone(), &mut ());
+
+        println!("[TestGui.update] events = [");
+        for event in events.iter() {
+            let w = self.gui.get(event.id);
+            print!("\t{:?}", event.kind);
+            if let EventKind::Change { ref field } = event.kind {
+                if field.is_pos() {
+                    print!("\tpos={}", w.pos);
+                } else if field.is_size() {
+                    print!("\tsize={}", w.size);
+                }
+            }
+            println!("\tid={}", event.id);
+        }
+        println!("]\n");
+        (events, capture)
+    }
+    /// Simulate a frame
+    pub fn update(&mut self) -> (Vec<Event>, Capture) {
+        self.input.prepare_for_next_frame();
+        self.update_internal()
+    }
+    /// Simulate a frame in which user presses left mouse button down.
+    pub fn press(&mut self, pos: Vec2) -> (Vec<Event>, Capture) {
+        self.input.prepare_for_next_frame();
+        self.input.register_mouse_position(pos.x, pos.y);
+        press_left_mouse(&mut self.input);
+        self.update_internal()
+    }
+    /// Simulate a frame in which user releases left mouse button down.
+    pub fn release(&mut self) -> (Vec<Event>, Capture) {
+        self.input.prepare_for_next_frame();
+        release_left_mouse(&mut self.input);
+        self.update_internal()
+    }
+}
+
 pub struct Expected {
     size: Vec2,
     pos: Vec2,
 }
 
 pub struct TestFixture {
-    pub gui: Gui<NoDrawer>,
-    pub input: Input,
+    pub gui: TestGui,
     pub expected: HashMap<String, Expected>,
 }
 impl TestFixture {
     const PADDING: f32 = 5.0;
     /// A configuration which is used in all tests
     pub fn fixture() -> Self {
-        let mut gui = Gui::new(NoDrawer);
+        let mut test_gui = TestGui::new();
+        let mut gui = &mut test_gui.gui;
         gui.root.config =
             gui.root
                 .config
@@ -72,30 +126,13 @@ impl TestFixture {
         }
 
         Self {
-            gui,
-            input: Input::default(),
+            gui: test_gui,
             expected,
         }
     }
     /// Calls update on gui
     pub fn update(&mut self) -> (Vec<Event>, Capture) {
-        let log = Logger::root(Discard, o!());
-        let (events, capture) = self.gui.update(&self.input, log, &mut ());
-        println!("[TestFixture][update] events = [");
-        for event in events.iter() {
-            let w = self.gui.get(event.id);
-            print!("\t{:?}", event.kind);
-            if let EventKind::Change { ref field } = event.kind {
-                if field.is_pos() {
-                    print!("\tpos={}", w.pos);
-                } else if field.is_size() {
-                    print!("\tsize={}", w.size);
-                }
-            }
-            println!("\tid={}", event.id);
-        }
-        println!("]\n");
-        (events, capture)
+        self.gui.update()
     }
     /// Click (press and release) a widget. Returns (events, capture) after pressing and after
     /// releasing
@@ -104,14 +141,7 @@ impl TestFixture {
         let size = self.expected[id].size;
         let mouse_pos = pos + size / 2.0;
 
-        self.input.register_mouse_position(mouse_pos.x, mouse_pos.y);
-        press_left_mouse(&mut self.input);
-        println!("[TestFixture] Press mouse {:?}", mouse_pos);
-        let result1 = self.update();
-        release_left_mouse(&mut self.input);
-        println!("[TestFixture] Release mouse down at {:?}", mouse_pos);
-        let result2 = self.update();
-        (result1, result2)
+        (self.gui.press(mouse_pos), self.gui.release())
     }
 
     /*

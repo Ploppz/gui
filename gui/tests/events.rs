@@ -3,16 +3,14 @@ use slog::{o, Discard, Logger};
 use winput::Input;
 
 /// Test whether the layout alg completes in one single update.
-fn test_idempotence(gui: &mut Gui<NoDrawer>, input: &Input, initial_events: Option<Vec<Event>>) {
-    let log = Logger::root(Discard, o!());
-    let initial_events =
-        initial_events.unwrap_or_else(|| gui.update(input, log.clone(), &mut ()).0);
+fn test_idempotence(gui: &mut TestGui, initial_events: Option<Vec<Event>>) {
+    let initial_events = initial_events.unwrap_or_else(|| gui.update().0);
     assert!(
         initial_events.len() > 0,
         "TEST ERROR: the premise of the test is that the initial update does yield some errors"
     );
     for _ in 0..4 {
-        let (events, _) = gui.update(input, log.clone(), &mut ());
+        let (events, _) = gui.update();
         if !events.is_empty() {
             use std::fmt::Write;
             let mut s = "Events:\n".to_string();
@@ -31,45 +29,39 @@ fn test_idempotence(gui: &mut Gui<NoDrawer>, input: &Input, initial_events: Opti
 }
 
 #[test]
-fn test_idempotent_positioning() {
+fn test_idempotence_in_fixture() {
     // Verify that updating once is enough to complete positioning/sizing/layouting
     let mut fix = TestFixture::fixture();
-    test_idempotence(&mut fix.gui, &Input::default(), None);
+    test_idempotence(&mut fix.gui, None);
 }
 #[test]
 fn test_idempotence_in_select() {
     // Test idemptence of layout algorithm with one dropdown button after clicking it.
     //
-    let log = Logger::root(Discard, o!());
-    let mut input = Input::default();
-    let mut gui = Gui::new(NoDrawer);
+    let mut gui = TestGui::new();
     let id = gui.insert_in_root(
         Select::new()
             .option("one".to_string(), "one".to_string())
             .option("two".to_string(), "two".to_string()),
     );
-    gui.update(&input, log.clone(), &mut ());
+    gui.update();
 
     let click_pos =
         *gui.access(id).chain(Widget::pos).get() + *gui.access(id).chain(Widget::size).get() / 2.0;
 
-    input.register_mouse_position(click_pos.x, click_pos.y);
+    let (events, _) = gui.press(click_pos);
 
-    press_left_mouse(&mut input);
-    let (events, _) = gui.update(&input, log.clone(), &mut ());
     let main_button_id = *gui
         .access(id)
         .chain(Widget::first_child)
         .chain(Widget::id)
         .get();
-    println!("Events 1: {:#?}", events);
+    // println!("Events 1: {:#?}", events);
     assert!(events.iter().any(|e| *e
         == Event {
             id: main_button_id,
             kind: EventKind::Press
         }));
-
-    new_frame(&mut input);
 
     let mut has_made_new_widgets = false;
     for event in &events {
@@ -79,7 +71,7 @@ fn test_idempotence_in_select() {
     // If any of the above asserts fail it might mean we failed to press the button
     // Setup is done, now test idemptence:
     println!("There should be no more events now");
-    test_idempotence(&mut gui, &input, Some(events));
+    test_idempotence(&mut gui, Some(events));
 }
 
 #[test]
