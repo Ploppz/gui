@@ -6,10 +6,12 @@ pub struct WidgetConfig {
     pub place: Option<Placement>,
     /// The axis along which to stack children
     pub layout_direction: Axis,
+    /// Anchor along main axis
+    pub layout_main_align: Anchor,
     /// If true, children are stacked in the cross axis when the main axis fills up.
     pub layout_wrap: bool,
     /// Alignment of children along the cross axis (the axis which is not the direction).
-    pub layout_align: Anchor,
+    pub layout_cross_align: Anchor,
     /// Space between widgets in the main axis.
     /// TODO: should maybe be a "justify" enum where you can choose to space them evenly etc
     pub layout_main_margin: f32,
@@ -25,7 +27,8 @@ impl Default for WidgetConfig {
             place: None,
             layout_direction: Axis::X,
             layout_wrap: false,
-            layout_align: Anchor::Min,
+            layout_main_align: Anchor::Min,
+            layout_cross_align: Anchor::Min,
             layout_main_margin: 0.0,
 
             padding: Rect::zero(),
@@ -39,12 +42,12 @@ impl WidgetConfig {
         mut self,
         layout_direction: Axis,
         layout_wrap: bool,
-        layout_align: Anchor,
+        layout_cross_align: Anchor,
         _layout_main_margin: f32,
     ) -> Self {
         self.layout_direction = layout_direction;
         self.layout_wrap = layout_wrap;
-        self.layout_align = layout_align;
+        self.layout_cross_align = layout_cross_align;
         self.layout_main_margin = self.layout_main_margin;
         self
     }
@@ -52,8 +55,8 @@ impl WidgetConfig {
         self.layout_direction = value;
         self
     }
-    pub fn layout_align(mut self, value: Anchor) -> Self {
-        self.layout_align = value;
+    pub fn layout_cross_align(mut self, value: Anchor) -> Self {
+        self.layout_cross_align = value;
         self
     }
     pub fn placement(mut self, place: Placement) -> Self {
@@ -113,8 +116,7 @@ impl Widget {
         if self.config.layout_wrap {
             unimplemented!()
         }
-        let size = self.size;
-        let layout_align = self.config.layout_align;
+        let layout_cross_align = self.config.layout_cross_align;
         let layout_main_margin = self.config.layout_main_margin;
         let padding_min = self.config.padding.min;
 
@@ -123,9 +125,56 @@ impl Widget {
             self.config.layout_direction.other(),
         );
 
-        let mut layout_progress = self.config.padding.min[main_axis];
-        // max width/height along cross axis
+        //
+        // Figure out size first, based on children's sizes
+        //
+
+        let mut main_size = self.config.padding.min[main_axis] + self.config.padding.max[main_axis];
         let mut cross_size = 0.0;
+
+        for child in self.children.values() {
+            if let None = child.config.place {
+                main_size += child.size[main_axis] + layout_main_margin;
+                if child.size[cross_axis] > cross_size {
+                    cross_size = child.size[cross_axis]
+                }
+            }
+        }
+        // because it should only be _between_ children - not after the last one
+        main_size -= layout_main_margin;
+
+        let mut new_size = self.size;
+
+        if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
+            new_size = intrinsic_size;
+        } else {
+            match self.config.size_hint[main_axis] {
+                SizeHint::Minimize => new_size[main_axis] = main_size,
+                SizeHint::External(s) => new_size[main_axis] = s,
+            }
+            match self.config.size_hint[cross_axis] {
+                SizeHint::Minimize => {
+                    new_size[cross_axis] = cross_size
+                        + self.config.padding.min[cross_axis]
+                        + self.config.padding.max[cross_axis]
+                }
+                SizeHint::External(s) => new_size[cross_axis] = s,
+            }
+        }
+
+        if new_size != self.size {
+            self.size = new_size;
+            gui.borrow_mut()
+                .push_event(Event::change(self.id, Widget::size));
+        }
+
+        //
+        // Update positions of all children
+        //
+        let size = self.size;
+        // Keeps track of position along main axis
+        // TODO: needs special inital value sometimes
+        let mut main_progress = self.config.padding.min[main_axis];
 
         for child in self.children.values_mut() {
             let mut child_relative_pos = Vec2::zero();
@@ -147,49 +196,17 @@ impl Widget {
                 };
             } else {
                 // Layout algorithm
-                child_relative_pos[main_axis] = layout_progress;
-                layout_progress += child.size[main_axis] + layout_main_margin;
-                child_relative_pos[cross_axis] = match layout_align {
+                child_relative_pos[main_axis] = main_progress;
+                child_relative_pos[cross_axis] = match layout_cross_align {
                     Anchor::Min => padding_min[cross_axis],
                     Anchor::Center => (size[cross_axis] - child.size[cross_axis]) / 2.0,
                     Anchor::Max => unimplemented!(),
                 };
-                if child.size[cross_axis] > cross_size {
-                    cross_size = child.size[cross_axis]
-                }
+                main_progress += child.size[main_axis] + layout_main_margin;
             };
 
             // println!("Positioning Child [{}] relative_pos={:?}", child.id, child_relative_pos);
             child.rel_pos = child_relative_pos;
-        }
-        // because it should only be _between_ children - not after the last one
-        layout_progress -= layout_main_margin;
-        layout_progress += self.config.padding.max[main_axis];
-
-        let mut new_size = self.size;
-        // println!("[positioning {}] pre size {:?}", self.id, new_size);
-
-        if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
-            new_size = intrinsic_size;
-        } else {
-            match self.config.size_hint[main_axis] {
-                SizeHint::Minimize => new_size[main_axis] = layout_progress,
-                SizeHint::External(s) => new_size[main_axis] = s,
-            }
-            match self.config.size_hint[cross_axis] {
-                SizeHint::Minimize => {
-                    new_size[cross_axis] = cross_size
-                        + self.config.padding.min[cross_axis]
-                        + self.config.padding.max[cross_axis]
-                }
-                SizeHint::External(s) => new_size[cross_axis] = s,
-            }
-        }
-
-        if new_size != self.size {
-            self.size = new_size;
-            gui.borrow_mut()
-                .push_event(Event::change(self.id, Widget::size));
         }
     }
 }

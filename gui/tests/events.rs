@@ -1,6 +1,5 @@
 use gui::{lens::*, test_common::*, *};
-use slog::{o, Discard, Logger};
-use winput::Input;
+// use slog::{o, Discard, Logger};
 
 /// Test whether the layout alg completes in one single update.
 fn test_idempotence(gui: &mut TestGui, initial_events: Option<Vec<Event>>) {
@@ -20,11 +19,10 @@ fn test_idempotence(gui: &mut TestGui, initial_events: Option<Vec<Event>>) {
                 if repeated {
                     write!(s, " (repeated)").unwrap();
                 }
-                writeln!(s);
+                writeln!(s).unwrap();
             }
             panic!("{}", s)
         }
-        // TODO NEXT if ... then: correlate these events with `initial_events`
     }
 }
 

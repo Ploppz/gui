@@ -29,7 +29,7 @@ impl<Style: ButtonStyle> Interactive for Button<Style> {
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .layout_direction(Axis::X)
-            .layout_align(Anchor::Center)
+            .layout_cross_align(Anchor::Center)
             .padding(4.0, 4.0, 6.0, 6.0)
             .height(DEFAULT_BUTTON_HEIGHT)
     }
@@ -66,7 +66,7 @@ impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
             .layout_direction(Axis::X)
-            .layout_align(Anchor::Center)
+            .layout_cross_align(Anchor::Center)
             .padding(4.0, 4.0, 6.0, 6.0)
             .height(DEFAULT_BUTTON_HEIGHT)
     }
