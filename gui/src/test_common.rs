@@ -197,22 +197,11 @@ fn test_fixture_expectation() {
 }
 
 pub fn press_left_mouse(s: &mut Input) {
-    s.register_mouse_input(
-        MouseInput {
-            state: ElementState::Pressed,
-            modifiers: ModifiersState::default(),
-        },
-        MouseButton::Left,
-    );
+    s.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 }
+
 pub fn release_left_mouse(s: &mut Input) {
-    s.register_mouse_input(
-        MouseInput {
-            state: ElementState::Released,
-            modifiers: ModifiersState::default(),
-        },
-        MouseButton::Left,
-    );
+    s.register_mouse_input(&ElementState::Released, &MouseButton::Left);
 }
 pub fn new_frame(s: &mut Input) {
     s.prepare_for_next_frame();
