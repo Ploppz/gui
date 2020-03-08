@@ -109,7 +109,8 @@ fn test_mark_change() {
     fix.update();
 
     // Manually change the toggle button
-    WidgetLens::new(&mut fix.gui, "ToggleButton 0")
+    fix.gui
+        .access("ToggleButton 0")
         .chain(ToggleButton::state)
         .put(true);
 

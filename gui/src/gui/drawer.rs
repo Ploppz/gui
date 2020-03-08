@@ -13,6 +13,7 @@ use slog::Logger;
 
 pub trait GuiDrawer: Sized {
     type Context;
+    type Calculator: TextCalculator;
     fn window_size(&self, ctx: &mut Self::Context) -> Vec2;
     fn transform_mouse(&self, m: Vec2, ctx: &mut Self::Context) -> Vec2;
     fn update(
@@ -22,22 +23,15 @@ pub trait GuiDrawer: Sized {
         log: Logger,
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
-    /// Determine size of rendered text without rendering it.
-    fn text_size(&self, text: &str, ctx: &mut Self::Context) -> Vec2;
 
-    /// Make an object that borrows from self and implements the same interface but with the
-    /// `Context` internally and not in the interface.
-    fn context_free<'a, 'b>(
-        &'a self,
-        ctx: &'b mut Self::Context,
-    ) -> GuiDrawerWithContext<'a, 'b, Self> {
-        GuiDrawerWithContext {
-            drawer: self,
-            ctx: ctx,
-        }
-    }
+    fn text_calc(&self, ctx: &mut Self::Context) -> Self::Calculator;
 }
 
+pub trait TextCalculator: 'static + std::fmt::Debug {
+    fn text_size(&mut self, text: &str) -> Vec2;
+}
+
+/*
 pub trait ContextFreeGuiDrawer {
     fn text_size(&mut self, text: &str) -> Vec2;
 }
@@ -56,12 +50,22 @@ impl<'a, 'b, D: GuiDrawer> ContextFreeGuiDrawer for GuiDrawerWithContext<'a, 'b,
         self.drawer.text_size(text, self.ctx)
     }
 }
+*/
 
+/// Text calculator used with `NoDrawer` - simple 10.0 times the number of characters
+#[derive(Debug)]
+pub struct NoTextCalculator;
+impl TextCalculator for NoTextCalculator {
+    fn text_size(&mut self, text: &str) -> Vec2 {
+        Vec2::new(10.0 * text.len() as f32, 10.0)
+    }
+}
 /// Empty implementor of GuiDrawer, for a headless Gui.
 /// Note: Text size and window size are always zero.
 pub struct NoDrawer;
 impl GuiDrawer for NoDrawer {
     type Context = ();
+    type Calculator = NoTextCalculator;
     fn window_size(&self, _ctx: &mut Self::Context) -> Vec2 {
         Vec2::zero()
     }
@@ -77,8 +81,8 @@ impl GuiDrawer for NoDrawer {
     ) -> Vec<WidgetOp> {
         Vec::new()
     }
-    fn text_size(&self, text: &str, _ctx: &mut Self::Context) -> Vec2 {
-        Vec2::new(10.0 * text.len() as f32, 10.0)
+    fn text_calc(&self, _ctx: &mut Self::Context) -> Self::Calculator {
+        NoTextCalculator
     }
 }
 

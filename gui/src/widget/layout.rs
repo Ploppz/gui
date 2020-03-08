@@ -101,15 +101,10 @@ impl WidgetConfig {
 impl Widget {
     /// Recursively updates the position of children, and updates size of `self` if applicable.
     /// Additionally, updates sizes of text fields using `GuiDrawer`
-    pub(crate) fn layout_alg<D: GuiDrawer>(
-        &mut self,
-        gui: GuiShared,
-        drawer: &D,
-        ctx: &mut D::Context,
-    ) {
+    pub(crate) fn layout_alg(&mut self) {
         for child in self.children.values_mut() {
             // Recurse
-            child.layout_alg(gui.clone(), drawer, ctx);
+            child.layout_alg();
         }
 
         // println!("Positioning Parent [{}]", self.id);
@@ -145,7 +140,7 @@ impl Widget {
 
         let mut new_size = self.size;
 
-        if let Some(intrinsic_size) = self.determine_size(&mut drawer.context_free(ctx)) {
+        if let Some(intrinsic_size) = self.determine_size(&mut *self.gui.borrow_mut().text_calc) {
             new_size = intrinsic_size;
         } else {
             match self.config.size_hint[main_axis] {
@@ -164,7 +159,8 @@ impl Widget {
 
         if new_size != self.size {
             self.size = new_size;
-            gui.borrow_mut()
+            self.gui
+                .borrow_mut()
                 .push_event(Event::change(self.id, Widget::size));
         }
 

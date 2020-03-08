@@ -8,96 +8,19 @@ use std::ops::Deref;
 use winput::Input;
 
 mod layout;
+mod lenses;
 pub use layout::WidgetConfig;
 
 /// Macro is needed rather than a member function, in order to preserve borrow information:
 /// so that the compiler knows that only `self.children` is borrowed.
-macro_rules! children_proxy {
+macro_rules! widget_context {
     ($self:ident) => {
-        ChildrenProxy {
+        WidgetContext {
             self_id: $self.id,
             children: &mut $self.children,
+            gui: &$self.gui,
         }
     };
-}
-
-// TODO: just pos, rel_pos, size initially
-
-// TODO(PosLens): should be possible to read the value indeed but not set it
-// To set a value one should go through `config`!
-// Perhaps `get_mut` somehow has to do that? Idk how.
-#[derive(Clone)]
-pub struct PosLens;
-impl Lens for PosLens {
-    type Source = Widget;
-    type Target = Vec2;
-    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
-        &source.pos
-    }
-    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
-        &mut source.pos
-    }
-}
-impl LeafLens for PosLens {
-    fn target(&self) -> String {
-        "Widget::pos".into()
-    }
-}
-
-#[derive(Clone)]
-pub struct SizeLens;
-impl Lens for SizeLens {
-    type Source = Widget;
-    type Target = Vec2;
-    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
-        &source.size
-    }
-    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
-        &mut source.size
-    }
-}
-impl LeafLens for SizeLens {
-    fn target(&self) -> String {
-        "Widget::size".into()
-    }
-}
-#[derive(Clone)]
-pub struct IdLens;
-impl Lens for IdLens {
-    type Source = Widget;
-    type Target = Id;
-    fn get<'a>(&self, source: &'a Widget) -> &'a Self::Target {
-        &source.id
-    }
-    fn get_mut<'a>(&self, source: &'a mut Widget) -> &'a mut Self::Target {
-        &mut source.id
-    }
-}
-impl LeafLens for IdLens {
-    fn target(&self) -> String {
-        "Widget::id".into()
-    }
-}
-
-#[derive(Clone)]
-pub struct FirstChildLens;
-impl Lens for FirstChildLens {
-    type Source = Widget;
-    type Target = Widget;
-    fn get<'a>(&self, w: &'a Widget) -> &'a Widget {
-        &w.children().values().next().unwrap()
-    }
-    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Widget {
-        w.children_mut().next().unwrap()
-    }
-}
-
-#[allow(non_upper_case_globals)]
-impl Widget {
-    pub const size: SizeLens = SizeLens;
-    pub const pos: PosLens = PosLens;
-    pub const first_child: FirstChildLens = FirstChildLens;
-    pub const id: IdLens = IdLens;
 }
 
 #[derive(Deref, DerefMut, Debug)]
@@ -136,15 +59,16 @@ pub struct Widget {
 }
 
 impl Widget {
-    pub(crate) fn new(id: Id, mut widget: Box<dyn Interactive>, gui: GuiShared) -> Widget {
+    pub(crate) fn new<I: Interactive>(id: Id, mut widget: I, gui: GuiShared) -> Widget {
         let mut children = IndexMap::new();
-        let mut proxy = ChildrenProxy {
+        let mut ctx = WidgetContext {
             self_id: id,
             children: &mut children,
+            gui: &gui,
         };
-        let config = widget.init(&mut proxy, &gui);
+        let config = widget.init(&mut ctx);
         Widget {
-            inner: widget,
+            inner: Box::new(widget),
             children,
             pos: Vec2::zero(),
             rel_pos: Vec2::zero(),
@@ -163,28 +87,29 @@ impl Widget {
     }
 
     /// Creates a lens to access this widget.
-    pub fn access(&mut self, gui: GuiShared) -> InternalLens {
-        InternalLens::new(self, gui)
+    pub fn access(&mut self) -> LensRoot {
+        LensRoot::new(self, self.gui.clone())
     }
     pub fn children(&self) -> &IndexMap<Id, Widget> {
         &self.children
     }
-    /// Get iterator over mutable children
+    pub fn insert_child<I: Interactive>(&mut self, child: I) -> Id {
+        self.widget_context().insert_child(child)
+    }
+    pub fn get_child_mut(&mut self, id: Id) -> &mut Widget {
+        self.children.get_mut(&id).unwrap()
+    }
+    /// Get iterator over widgets and their ids
     pub fn children_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
         self.children.values_mut()
     }
-    pub fn insert_child(&mut self, widget: Box<dyn Interactive>) -> Id {
-        let gui = self.gui.clone();
-        self.children_proxy().insert(widget, &gui)
-    }
     pub fn remove_child(&mut self, id: Id) {
-        let gui = self.gui.clone();
-        self.children_proxy().remove(id, &gui)
+        self.gui.borrow_mut().remove(id);
     }
     /// Needed only when access to children are needed without access to the `Widget`: for example
     /// in `Interactive::update` and `Interactive::init`, which cannot possibly know the `Widget`
-    pub fn children_proxy(&mut self) -> ChildrenProxy {
-        children_proxy!(self)
+    pub(crate) fn widget_context(&mut self) -> WidgetContext {
+        widget_context!(self)
     }
     pub fn get_id(&self) -> Id {
         self.id
@@ -205,20 +130,19 @@ impl Widget {
         sw: f32,
         sh: f32,
         mouse: Vec2,
-        gui: &GuiShared,
         log: Logger,
     ) -> Capture {
-        let prev_events_len = gui.borrow().events().len();
+        let prev_events_len = self.gui.borrow().events().len();
         let mut capture = Capture::default();
 
         // Update children
         for child in self.children.values_mut() {
-            let child_capture = child.update_bottom_up(input, sw, sh, mouse, gui, log.clone());
+            let child_capture = child.update_bottom_up(input, sw, sh, mouse, log.clone());
             capture |= child_capture;
         }
 
         if !capture.mouse {
-            let mut gui = gui.borrow_mut();
+            let mut gui = self.gui.borrow_mut();
             let now_inside = self.inside(self.pos, self.size, mouse);
             let prev_inside = self.inside;
             self.inside = now_inside;
@@ -243,22 +167,24 @@ impl Widget {
             }
         }
         // Execute widget-specific logic
-        let local_events = gui.borrow().events()[prev_events_len..].to_vec();
+        let local_events = self.gui.borrow().events()[prev_events_len..].to_vec();
         self.inner
-            .update(self.id, local_events, &mut children_proxy!(self), gui);
+            .update(self.id, local_events, &mut widget_context!(self));
 
         capture
     }
     /// Calculates absolute positions
-    pub(crate) fn update_top_down(&mut self, events: &mut Vec<Event>) {
+    pub(crate) fn update_top_down(&mut self) {
         let pos = self.pos;
         for child in self.children.values_mut() {
             let new_pos = pos + child.rel_pos;
             if new_pos != child.pos {
-                events.push(Event::change(child.id, Widget::pos));
+                self.gui
+                    .borrow_mut()
+                    .push_event(Event::change(child.id, Widget::pos));
                 child.pos = new_pos;
             }
-            child.update_top_down(events);
+            child.update_top_down();
         }
     }
 
@@ -277,28 +203,27 @@ impl Widget {
 /// Provides an interface to insert, delete and get immediate children.
 /// Through Deref, we can get the immediate children immutably.
 /// DerefMut is not implemented, because it is forbidden to insert children without using the
-/// provided `ChildrenProxy::insert` function.
+/// provided `WidgetContext::insert` function.
 /// NOTE: If you need to get a widget in the widget tree that is not immediate, look to
-/// [gui::WidgetLens] or the getters of [Gui]
+/// [gui::LensRoot], [gui::Gui::access] or [gui::Widget::access]
 ///
-pub struct ChildrenProxy<'a> {
-    self_id: Id,
+pub struct WidgetContext<'a, 'b> {
     /// children of a widget
     children: &'a mut IndexMap<Id, Widget>,
+    pub self_id: Id,
+    pub gui: &'b GuiShared,
 }
-impl<'a> Deref for ChildrenProxy<'a> {
+impl<'a, 'b> Deref for WidgetContext<'a, 'b> {
     type Target = IndexMap<Id, Widget>;
     fn deref(&self) -> &Self::Target {
         self.children
     }
 }
-impl<'a> ChildrenProxy<'a> {
-    pub fn new(self_id: Id, children: &'a mut IndexMap<Id, Widget>) -> Self {
-        Self { self_id, children }
-    }
-    pub fn insert(&mut self, widget: Box<dyn Interactive>, gui: &GuiShared) -> Id {
+impl<'a, 'b> WidgetContext<'a, 'b> {
+    /// Insert child
+    pub fn insert_child<I: Interactive>(&mut self, child: I) -> Id {
         let id = {
-            let mut gui = gui.borrow_mut();
+            let mut gui = self.gui.borrow_mut();
             let id = gui.new_id();
 
             // Emit event
@@ -315,17 +240,20 @@ impl<'a> ChildrenProxy<'a> {
             id
         };
 
-        let widget = Widget::new(id, widget, gui.clone());
+        let widget = Widget::new(id, child, self.gui.clone());
         self.children.insert(id, widget);
         id
     }
-    pub fn remove(&mut self, id: Id, gui: &GuiShared) {
-        gui.borrow_mut().remove(id);
+    /// Remove child
+    pub fn remove_child(&mut self, id: Id) {
+        self.gui.borrow_mut().remove(id);
     }
-    pub fn get_mut(&mut self, id: Id) -> &mut Widget {
+    /// Get child
+    pub fn get_child_mut(&mut self, id: Id) -> &mut Widget {
         self.children.get_mut(&id).unwrap()
     }
-    pub fn values_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
+    /// Get iterator over widgets and their ids
+    pub fn children_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
         self.children.values_mut()
     }
 }

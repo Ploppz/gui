@@ -49,28 +49,17 @@ pub struct GuiInternal {
     to_remove: Vec<Id>,
     /// Events collected outside update function, consumed when update is called.
     events: Vec<Event>,
+    pub text_calc: Box<dyn TextCalculator>,
 }
 impl GuiInternal {
-    pub fn new() -> Self {
+    pub fn new<T: TextCalculator>(text_calc: T) -> Self {
         GuiInternal {
             paths: IndexMap::new(),
             id_cnt: ROOT,
             to_remove: Vec::new(),
             events: Vec::new(),
+            text_calc: Box::new(text_calc),
         }
-    }
-    pub fn insert_path(&mut self, id: Id, path: Vec<Id>) {
-        self.paths.insert(id, path);
-    }
-    pub fn get_path(&self, id: Id) -> &[Id] {
-        &self.paths[&id]
-    }
-    pub fn new_id(&mut self) -> Id {
-        self.id_cnt += 1;
-        self.id_cnt
-    }
-    pub fn remove(&mut self, id: Id) {
-        self.to_remove.push(id);
     }
 
     pub fn push_event(&mut self, event: Event) {
@@ -78,6 +67,19 @@ impl GuiInternal {
     }
     pub fn events(&self) -> &[Event] {
         &self.events
+    }
+    pub fn remove(&mut self, id: Id) {
+        self.to_remove.push(id);
+    }
+    pub(crate) fn new_id(&mut self) -> Id {
+        self.id_cnt += 1;
+        self.id_cnt
+    }
+    pub(crate) fn insert_path(&mut self, id: Id, path: Vec<Id>) {
+        self.paths.insert(id, path);
+    }
+    pub(crate) fn get_path(&self, id: Id) -> &[Id] {
+        &self.paths[&id]
     }
 }
 
@@ -92,9 +94,9 @@ pub struct Gui<D> {
 }
 
 impl<D: GuiDrawer> Gui<D> {
-    pub fn new(drawer: D) -> Gui<D> {
-        let internal = Rc::new(RefCell::new(GuiInternal::new()));
-        let mut root = Widget::new(ROOT, Box::new(Root), internal.clone());
+    pub fn new(drawer: D, ctx: &mut D::Context) -> Gui<D> {
+        let internal = Rc::new(RefCell::new(GuiInternal::new(drawer.text_calc(ctx))));
+        let mut root = Widget::new(ROOT, Root, internal.clone());
         root.config = root.config.placement(Placement::fixed(0.0, 0.0));
         Gui {
             root,
@@ -111,26 +113,22 @@ impl<D: GuiDrawer> Gui<D> {
         &self.internal
     }
     /// Constructs a [`LensDriver`] to access a widget given by `id`
-    pub fn access<I: AsId<D>>(&mut self, id: I) -> WidgetLens<D, I> {
-        WidgetLens::new(self, id)
+    pub fn access<I: AsId<D>>(&mut self, id: I) -> LensRoot {
+        let internal = self.internal.clone();
+        LensRoot::new(self.get_mut(id), internal)
     }
     pub fn insert<I: AsId<D>, W: Interactive>(&mut self, parent_id: I, widget: W) -> Option<Id> {
-        self.insert_internal(parent_id, Box::new(widget))
+        self.insert_internal(parent_id, widget)
     }
     /// Returns None if widget referred to by parent_id does not exist
-    fn insert_internal<I: AsId<D>>(
+    fn insert_internal<I: AsId<D>, W: Interactive>(
         &mut self,
         parent_id: I,
-        widget: Box<dyn Interactive>,
+        widget: W,
     ) -> Option<Id> {
         if let Some(parent_id) = parent_id.resolve(self) {
-            let internal = self.internal.clone();
-            // Create Widget and insert
             if let Some(parent) = self.try_get_mut(parent_id) {
-                let mut children = ChildrenProxy::new(parent_id, &mut parent.children);
-                Some(children.insert(widget, &internal))
-            // TODO ???
-            // self.events.push(Event::new(id, EventKind::Change));
+                Some(parent.insert_child(widget))
             } else {
                 return None;
             }
@@ -269,11 +267,9 @@ impl<D: GuiDrawer> Gui<D> {
         // 3 traversals
         let capture = self
             .root
-            .update_bottom_up(input, sw, sh, mouse, &self.internal, log.clone());
-        self.root
-            .layout_alg(self.internal.clone(), self.drawer.as_ref().unwrap(), ctx);
-        self.root
-            .update_top_down(&mut self.internal.borrow_mut().events);
+            .update_bottom_up(input, sw, sh, mouse, log.clone());
+        self.root.layout_alg();
+        self.root.update_top_down();
 
         // Update parent relations
         {

@@ -47,13 +47,8 @@ type DefaultBar = Bar<i32>;
 
 #[test]
 fn test_lenses() {
-    let mut gui = Gui::new(NoDrawer);
+    let mut gui = Gui::new(NoDrawer, &mut ());
     gui.insert_in_root_with_alias(Bar::<i32>::new(0), "abc".to_string());
-    // This is how an application would use WidgetLens
-    WidgetLens::new(&mut gui, "abc").chain(DefaultBar::a).put(2);
-
-    assert_eq!(
-        2,
-        *WidgetLens::new(&mut gui, "abc").chain(DefaultBar::a).get()
-    )
+    gui.access("abc").chain(DefaultBar::a).put(2);
+    assert_eq!(2, *gui.access("abc").chain(DefaultBar::a).get())
 }

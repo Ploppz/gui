@@ -19,11 +19,8 @@ impl<Style: ButtonStyle> Button<Style> {
     }
 }
 impl<Style: ButtonStyle> Interactive for Button<Style> {
-    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
-        children.insert(
-            Box::new(TextField::<Style::TextField>::new(String::new())),
-            gui,
-        );
+    fn init(&mut self, ctx: &mut WidgetContext) -> WidgetConfig {
+        ctx.insert_child(TextField::<Style::TextField>::new(String::new()));
 
         // Layout the one child in X direction with vertical centering
         WidgetConfig::default()
@@ -57,11 +54,8 @@ impl<Style: ButtonStyle> ToggleButton<Style> {
     }
 }
 impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
-    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
-        children.insert(
-            Box::new(TextField::<Style::TextField>::new(String::new())),
-            gui,
-        );
+    fn init(&mut self, ctx: &mut WidgetContext) -> WidgetConfig {
+        ctx.insert_child(TextField::<Style::TextField>::new(String::new()));
         // Layout the one child in X direction with vertical centering
         WidgetConfig::default()
             .size_hint(SizeHint::Minimize, SizeHint::Minimize)
@@ -70,18 +64,13 @@ impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
             .padding(4.0, 4.0, 6.0, 6.0)
             .height(DEFAULT_BUTTON_HEIGHT)
     }
-    fn update(
-        &mut self,
-        id: Id,
-        local_events: Vec<Event>,
-        _children: &mut ChildrenProxy,
-        gui: &GuiShared,
-    ) {
+    fn update(&mut self, id: Id, local_events: Vec<Event>, ctx: &mut WidgetContext) {
         for event in local_events {
             if id == event.id {
                 if let EventKind::Press = event.kind {
                     self.state = !self.state;
-                    gui.borrow_mut()
+                    ctx.gui
+                        .borrow_mut()
                         .push_event(Event::change(event.id, Self::state));
                 }
             }

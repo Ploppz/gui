@@ -36,11 +36,11 @@ impl<Style: SelectStyle> Select<Style> {
         self.options.push(SelectOption { name, value });
         self
     }
-    pub fn close(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) {
-        let to_remove = children.keys().cloned().collect::<Vec<_>>();
+    pub fn close(&mut self, ctx: &mut WidgetContext) {
+        let to_remove = ctx.keys().cloned().collect::<Vec<_>>();
         for id in to_remove {
             if id != self.main_button_id {
-                children.remove(id, gui);
+                ctx.remove_child(id);
             }
         }
         self.opt_map = IndexMap::new();
@@ -48,51 +48,40 @@ impl<Style: SelectStyle> Select<Style> {
 }
 
 impl<Style: SelectStyle> Interactive for Select<Style> {
-    fn init(&mut self, children: &mut ChildrenProxy, gui: &GuiShared) -> WidgetConfig {
-        let main_id = children.insert(
-            Box::new(ToggleButton::<Style::Button>::new()) as Box<dyn Interactive>,
-            gui,
-        );
+    fn init(&mut self, ctx: &mut WidgetContext) -> WidgetConfig {
+        let main_id = ctx.insert_child(ToggleButton::<Style::Button>::new());
         self.main_button_id = main_id;
         WidgetConfig::default()
             // .padding(4.0, 4.0, 6.0, 6.0)
             .layout(Axis::Y, false, Anchor::Min, 2.0)
     }
-    fn update(
-        &mut self,
-        _id: Id,
-        local_events: Vec<Event>,
-        children: &mut ChildrenProxy,
-        gui: &GuiShared,
-    ) {
+    fn update(&mut self, _id: Id, local_events: Vec<Event>, ctx: &mut WidgetContext) {
         // Always ensure that all children have the same width
 
         for Event { id, kind } in local_events.iter().cloned() {
             // Toggle dropdown list
             if id == self.main_button_id {
                 if kind.is_change(ToggleButton::<Style::Button>::state) {
-                    let toggled = *children
-                        .get_mut(id)
-                        .access(gui.clone())
+                    let toggled = *ctx
+                        .get_child_mut(id)
+                        .access()
                         .chain(ToggleButton::<Style::Button>::state)
                         .get();
                     if toggled {
                         for (i, option) in self.options.iter().enumerate() {
-                            let id =
-                                children.insert(Box::new(Button::<Style::Button>::new()), &gui);
+                            let id = ctx.insert_child(Button::<Style::Button>::new());
 
-                            children
-                                .get_mut(id)
-                                .access(gui.clone())
+                            ctx.get_child_mut(id)
+                                .access()
                                 .chain(Widget::first_child)
                                 .chain(TextField::<Style::TextField>::text)
                                 .put(option.name.clone());
 
-                            // Button::text.put(children.get_mut(id), option.name.clone());
+                            // Button::text.put(ctx.get_mut(id), option.name.clone());
                             self.opt_map.insert(id, i);
                         }
                     } else {
-                        self.close(children, gui);
+                        self.close(ctx);
                     }
                 }
             }
@@ -100,18 +89,18 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
             if let Some(opt_idx) = self.opt_map.get(&id) {
                 if kind == EventKind::Press {
                     let opt = self.options[*opt_idx].clone();
-                    let btn = children.get_mut(self.main_button_id);
-                    btn.access(gui.clone())
+                    let btn = ctx.get_child_mut(self.main_button_id);
+                    btn.access()
                         .chain(Widget::first_child)
                         .chain(TextField::<Style::TextField>::text)
                         .put(opt.name.clone());
-                    btn.access(gui.clone())
+                    btn.access()
                         .chain(ToggleButton::<Style::Button>::state)
                         .put(false);
 
                     self.value = Some(opt.value.clone());
 
-                    self.close(children, gui);
+                    self.close(ctx);
                 }
             }
         }

@@ -21,7 +21,7 @@ impl TestGui {
     pub fn new() -> Self {
         TestGui {
             log: Logger::root(Discard, o!()),
-            gui: Gui::new(NoDrawer),
+            gui: Gui::new(NoDrawer, &mut ()),
             input: Input::default(),
         }
     }
@@ -101,12 +101,12 @@ impl TestFixture {
                 _ => unreachable!(),
             };
 
-            WidgetLens::new(&mut gui, id.clone())
+            gui.access(&id)
                 .chain(Widget::first_child)
                 .chain(TextField::text)
                 .put("text".to_string());
 
-            let text_size = NoDrawer.text_size("text", &mut ());
+            let text_size = NoDrawer.text_calc(&mut ()).text_size("text");
 
             // expected button size.
             // Per now, buttons have constant height, and padding in X axis

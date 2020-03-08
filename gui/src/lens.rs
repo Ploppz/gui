@@ -1,57 +1,55 @@
 //! Traits and types to support lenses specialized for use on widgets and their fields.
 //!
-//! Usage always starts with a `LensDriver`: widgets use `InternalLens` because they have direct
-//! access to `events` etc.
+//! Usage always starts with a `LensRoot`, and lenses can be chained together.
 //!
-//! Users of the `gui` library use `WidgetLens`, which has the capability of pushing events to a
-//! buffer internal to `Gui`, and getting widgets from `Gui` based on widget id.
+//! The most important reason why lenses exist in this crate, is that when mutating any field of
+//! any widget, we want to generate an event that signifies that that particular field was changed.
+//! Lenses are used to automatically generate events (they hold a reference to the event buffer),
+//! and simultaneously provides a way to encode a field as a value (look to [gui::FieldId]).
 //!
-//! Next, a `LensDriver` must be chained with any number of lenses always ending in a `LeafLens`
-//! which provides access to a field of a widget.
+//! Lenses can be used to get any descendant of a widget, but also to access fields - this is done
+//! with a `LeafLens`, which is always the very last lens (if present).
 //!
-//! Example from a widget implementation follows. The widget inserts a button as gets its id. Then
-//! in changes the text of said button by first getting its first child (which is a TextField), and
-//! then getting the `text` field of the `TextField`.
+//! If we already have a `Widget`, we can use `Widget::access`.
+//! The following example creates a child button on `widget`, then sets the text of the button
+//! (`Button` always has one child which is a `TextField`).
 //! ```
 //! # use gui::{*, interactive::*, lens::*, default::*};
 //! # use indexmap::IndexMap;
-//! # let mut gui = Gui::new(NoDrawer);
+//! # let mut gui = Gui::new(NoDrawer, &mut ());
 //! # let gui_shared = gui.shared();
 //! # let mut parent_id = gui.insert_in_root(Container::<()>::new());
-//! # let mut children = gui.get_mut(parent_id).children_proxy();
-//! // This example simulates an implementation of `Interactive`, where `children` and
-//! // `gui_shared` are both arguments passed to init/update
-//! let id = children.insert(Box::new(Button::<()>::new()), &gui_shared);
-//! InternalLens::new(children.get_mut(id), gui_shared)
-//!     .chain(Widget::first_child)
-//!     .chain(TextField::<()>::text)
-//!     .put("Click me!".to_string());
+//! # let mut widget = gui.get_mut(parent_id);
+//! let id = widget.insert_child(Button::<()>::new());
+//!
+//! widget.access()
+//!     .chain(Widget::child_lens(id)) // <- get Button
+//!     .chain(Widget::first_child)    // <- get TextField of Button
+//!     .chain(TextField::<()>::text)  // <- this is a `LeafLens`
+//!     .put("Click me!".to_string()); // <- mutates text and pushes event internally
 //! ```
 //!
 //!
-//! The same can be achieved in an application using `gui` in a similar way:
+//! The same can be achieved with `Gui::access` to access any widget:
 //! ```
 //! # use gui::{*, lens::*, default::*};
-//! let mut gui = Gui::new(NoDrawer);
+//! # let mut gui = Gui::new(NoDrawer, &mut ());
 //! gui.insert_in_root_with_alias(Button::<()>::new(), "my-button-id".to_string());
 //! // This is how an application would use WidgetLens
-//! WidgetLens::new(&mut gui, "my-button-id")
+//! gui.access("my-button-id")
 //!     .chain(Widget::first_child)
 //!     .chain(TextField::<()>::text)
 //!     .put("Click me!".to_string());
 //!
 //! assert_eq!("Click me!",
-//!     WidgetLens::new(&mut gui, "my-button-id")
+//!     gui.access("my-button-id")
 //!         .chain(Widget::first_child)
 //!         .chain(TextField::<()>::text)
 //!         .get());
 //! ```
 //!
 //! Note that in place of `"my-button-id"`, `&str`, `String` or `Id` can be used
-//! - anything identification you have handy.
-//!
-//! It is also conceivable to use `InternalLens` in an application whenever you have a `&Widget` or
-//! `&mut Widget` rather than just an `Id` and thus do not require `Gui` for resolving the ID:
+//! - any identification you have handy.
 //!
 //! New widgets that implement Interactive should `#[derive(Lens)]`.
 
@@ -156,47 +154,18 @@ where
     }
 }
 
-/// Used for looking up widgets globally
-pub struct WidgetLens<'a, D, I> {
-    id: I,
-    gui: &'a mut Gui<D>,
-}
-impl<'a, D, I> WidgetLens<'a, D, I> {
-    pub fn new(gui: &'a mut Gui<D>, id: I) -> Self {
-        Self { id, gui }
-    }
-}
-
-impl<'a, D: GuiDrawer, I: AsId<D>> LensDriver for WidgetLens<'a, D, I> {
-    fn get_widget(&self) -> &Widget {
-        self.gui.get(self.id.clone())
-    }
-    fn get_widget_mut(&mut self) -> &mut Widget {
-        self.gui.get_mut(self.id.clone())
-    }
-    fn push_event<F: LeafLens>(&mut self, id: Id, lens: F)
-    where
-        F::Target: PartialEq,
-    {
-        self.gui
-            .internal
-            .borrow_mut()
-            .push_event(Event::change(id, lens))
-    }
-}
-
-/// Used only internally in when implementing `Interactive`
-pub struct InternalLens<'a> {
+/// The starting point of all lenses. To start a lens, look to `Widget::access` and `Gui::access`
+pub struct LensRoot<'a> {
     widget: &'a mut Widget,
     gui: GuiShared,
 }
-impl<'a> InternalLens<'a> {
+impl<'a> LensRoot<'a> {
     pub fn new(widget: &'a mut Widget, gui: GuiShared) -> Self {
         Self { widget, gui }
     }
 }
 
-impl<'a> LensDriver for InternalLens<'a> {
+impl<'a> LensDriver for LensRoot<'a> {
     fn get_widget(&self) -> &Widget {
         &self.widget
     }
