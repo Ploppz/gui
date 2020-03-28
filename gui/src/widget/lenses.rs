@@ -71,7 +71,7 @@ impl Lens for FirstChildLens {
 
 #[derive(Clone)]
 pub struct ChildLens {
-    id: usize,
+    pub id: usize,
 }
 impl Lens for ChildLens {
     type Source = Widget;

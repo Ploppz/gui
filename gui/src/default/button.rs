@@ -84,6 +84,15 @@ impl<Style: ButtonStyle> Interactive for ToggleButton<Style> {
     }
 }
 
+// -------
+// Lenses
+// -------
+
+use crate::widget::lenses::FirstChildLens;
+impl<Style> Button<Style> {
+    pub const text_field: FirstChildLens = FirstChildLens;
+}
+
 #[cfg(test)]
 mod test {
     use crate::test_common::*;

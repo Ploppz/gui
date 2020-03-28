@@ -27,16 +27,17 @@ fn test_idempotence(gui: &mut TestGui, initial_events: Option<Vec<Event>>) {
 }
 
 #[test]
-fn test_idempotence_in_fixture() {
+fn test_fixture_idempotence() {
     // Verify that updating once is enough to complete positioning/sizing/layouting
     let mut fix = TestFixture::fixture();
     test_idempotence(&mut fix.gui, None);
 }
 #[test]
-fn test_idempotence_in_select() {
+fn test_select_idempotence() {
     // Test idemptence of layout algorithm with one dropdown button after clicking it.
     //
     let mut gui = TestGui::new();
+    gui.insert_in_root(Button::new());
     let id = gui.insert_in_root(
         Select::new()
             .option("one".to_string(), "one".to_string())
@@ -70,6 +71,30 @@ fn test_idempotence_in_select() {
     // Setup is done, now test idemptence:
     println!("There should be no more events now");
     test_idempotence(&mut gui, Some(events));
+}
+
+#[test]
+fn test_select_release_does_nothing() {
+    // releasing the mouse button does nothing (only pressing)
+    let mut gui = TestGui::new();
+    let id = gui.insert_in_root(
+        Select::new()
+            .option("one".to_string(), "one".to_string())
+            .option("two".to_string(), "two".to_string()),
+    );
+    gui.update();
+    let click_pos =
+        *gui.access(id).chain(Widget::pos).get() + *gui.access(id).chain(Widget::size).get() / 2.0;
+
+    let (_, _) = gui.press(click_pos);
+    let (events, _) = gui.release();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.kind != EventKind::Release)
+            .count(),
+        0
+    );
 }
 
 #[test]

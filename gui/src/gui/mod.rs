@@ -306,14 +306,7 @@ impl<D: GuiDrawer> Gui<D> {
         let ops = drawer.update(self, &events, log, ctx);
         self.drawer = Some(drawer);
         for op in ops {
-            match op {
-                WidgetOp::Resize { id, size } => {
-                    self.get_mut(id).config.set_size(size.x, size.y);
-                    self.internal
-                        .borrow_mut()
-                        .push_event(Event::change(id, Widget::size));
-                }
-            }
+            match op {}
         }
 
         (events, capture)

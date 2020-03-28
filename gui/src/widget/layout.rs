@@ -71,6 +71,10 @@ impl WidgetConfig {
         self.size_hint = Vec2::new(x, y);
         self
     }
+    pub fn set_size_hint(&mut self, x: SizeHint, y: SizeHint) -> &mut Self {
+        self.size_hint = Vec2::new(x, y);
+        self
+    }
     /// Fixed width
     pub fn width(mut self, w: f32) -> Self {
         self.size_hint.x = SizeHint::External(w);
@@ -140,22 +144,21 @@ impl Widget {
 
         let mut new_size = self.size;
 
-        if let Some(intrinsic_size) = self.determine_size(&mut *self.gui.borrow_mut().text_calc) {
-            new_size = intrinsic_size;
-        } else {
-            match self.config.size_hint[main_axis] {
-                SizeHint::Minimize => new_size[main_axis] = main_size,
-                SizeHint::External(s) => new_size[main_axis] = s,
+        let intrinsic_size = self.determine_size(&mut *self.gui.borrow_mut().text_calc);
+        new_size[main_axis] = match self.config.size_hint[main_axis] {
+            SizeHint::Minimize => main_size,
+            SizeHint::External(s) => s,
+            SizeHint::Intrinsic => intrinsic_size.expect("no intrinsic size").x,
+        };
+        new_size[cross_axis] = match self.config.size_hint[cross_axis] {
+            SizeHint::Minimize => {
+                cross_size
+                    + self.config.padding.min[cross_axis]
+                    + self.config.padding.max[cross_axis]
             }
-            match self.config.size_hint[cross_axis] {
-                SizeHint::Minimize => {
-                    new_size[cross_axis] = cross_size
-                        + self.config.padding.min[cross_axis]
-                        + self.config.padding.max[cross_axis]
-                }
-                SizeHint::External(s) => new_size[cross_axis] = s,
-            }
-        }
+            SizeHint::External(s) => s,
+            SizeHint::Intrinsic => intrinsic_size.expect("no intrinsic size").y,
+        };
 
         if new_size != self.size {
             self.size = new_size;

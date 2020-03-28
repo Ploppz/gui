@@ -70,13 +70,25 @@ pub trait Lens: 'static {
 
 /// A lens to accesses a certain field on a widget.
 /// It should exclusively be used as a step in a [lens::Chain].
-/// For more examples, look to the implementation of widgets like [Select].
+/// For more examples, look to the implementation of widgets like [gui::default::Select].
 pub trait LeafLens: Lens<Source = Widget> + Clone
 where
     Self::Target: PartialEq,
 {
     /// Make a string that describes the target field. e.g. `TextField::text`
     fn target(&self) -> String;
+}
+
+pub trait WidgetLens: LensDriver {
+    fn configure<F: FnOnce(&mut WidgetConfig)>(&mut self, f: F);
+}
+impl<T> WidgetLens for T
+where
+    T: LensDriver,
+{
+    fn configure<F: FnOnce(&mut WidgetConfig)>(&mut self, f: F) {
+        f(&mut self.get_widget_mut().config)
+    }
 }
 
 /// Support operations on widgets. Implementors will store Id or &mut Widget internally

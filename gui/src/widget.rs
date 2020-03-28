@@ -8,7 +8,7 @@ use std::ops::Deref;
 use winput::Input;
 
 mod layout;
-mod lenses;
+pub mod lenses;
 pub use layout::WidgetConfig;
 
 /// Macro is needed rather than a member function, in order to preserve borrow information:
@@ -255,5 +255,8 @@ impl<'a, 'b> WidgetContext<'a, 'b> {
     /// Get iterator over widgets and their ids
     pub fn children_mut(&mut self) -> indexmap::map::ValuesMut<usize, Widget> {
         self.children.values_mut()
+    }
+    pub fn access_child(&mut self, id: Id) -> LensRoot {
+        LensRoot::new(&mut self.children[&id], self.gui.clone())
     }
 }

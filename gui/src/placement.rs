@@ -76,6 +76,7 @@ pub enum SizeHint {
     /// Size is determined by the size of children.
     /// Size will be set to exactly contain children (plus eventual padding).
     Minimize,
+    Intrinsic,
     // Percentage(f32, f32),
     // TODO ^ rather try "flex factors" like in Flutter
 }

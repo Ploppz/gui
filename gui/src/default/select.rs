@@ -1,4 +1,5 @@
 use super::*;
+// use crate::{*, widget::lenses::ChildLens};
 use crate::*;
 use indexmap::IndexMap;
 
@@ -8,24 +9,30 @@ pub trait SelectStyle: Default + Send + Sync + Clone + std::fmt::Debug + 'static
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SelectOption {
+struct SelectOption {
     pub name: String,
-    pub value: String,
+    pub value: Option<String>,
 }
 
 #[derive(LensInternal, Debug)]
 pub struct Select<Style> {
+    // configuration
     options: Vec<SelectOption>,
+    pub style: Style,
+
+    // runtime state
     value: Option<String>,
-    /// map from ID to option index
+    /// map from ID to option index. If the index is None, it means the button is the reset button.
     opt_map: IndexMap<Id, usize>,
     main_button_id: usize,
-    pub style: Style,
 }
 impl<Style: SelectStyle> Select<Style> {
     pub fn new() -> Select<Style> {
         Select {
-            options: Vec::new(),
+            options: vec![SelectOption {
+                name: "-".into(),
+                value: None,
+            }],
             value: None,
             opt_map: IndexMap::new(),
             main_button_id: 0,
@@ -33,7 +40,10 @@ impl<Style: SelectStyle> Select<Style> {
         }
     }
     pub fn option(mut self, name: String, value: String) -> Self {
-        self.options.push(SelectOption { name, value });
+        self.options.push(SelectOption {
+            name,
+            value: Some(value),
+        });
         self
     }
     pub fn close(&mut self, ctx: &mut WidgetContext) {
@@ -45,12 +55,35 @@ impl<Style: SelectStyle> Select<Style> {
         }
         self.opt_map = IndexMap::new();
     }
+    pub fn main_button_id(&self) -> Id {
+        self.main_button_id
+    }
+    fn max_size(&self, ctx: &mut WidgetContext) -> Vec2 {
+        self.options
+            .iter()
+            .fold(None, |max: Option<Vec2>, option| {
+                let size = ctx.gui.borrow_mut().text_calc.text_size(&option.name);
+                if let Some(max) = max {
+                    Some(Vec2::new(max.x.max(size.x), max.y.max(size.y)))
+                } else {
+                    Some(size)
+                }
+            })
+            .unwrap()
+    }
 }
 
 impl<Style: SelectStyle> Interactive for Select<Style> {
     fn init(&mut self, ctx: &mut WidgetContext) -> WidgetConfig {
         let main_id = ctx.insert_child(ToggleButton::<Style::Button>::new());
         self.main_button_id = main_id;
+        let size = self.max_size(ctx);
+        ctx.access_child(main_id)
+            .chain(Button::<Style::Button>::text_field)
+            .configure(|config| {
+                config.set_size_hint(SizeHint::External(size.x), SizeHint::External(size.y));
+            });
+
         WidgetConfig::default()
             // .padding(4.0, 4.0, 6.0, 6.0)
             .layout(Axis::Y, false, Anchor::Min, 2.0)
@@ -58,24 +91,33 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
     fn update(&mut self, _id: Id, local_events: Vec<Event>, ctx: &mut WidgetContext) {
         // Always ensure that all children have the same width
 
+        let open = *ctx
+            .get_child_mut(self.main_button_id)
+            .access()
+            .chain(ToggleButton::<Style::Button>::state)
+            .get();
+        let size = self.max_size(ctx);
         for Event { id, kind } in local_events.iter().cloned() {
             // Toggle dropdown list
             if id == self.main_button_id {
                 if kind.is_change(ToggleButton::<Style::Button>::state) {
-                    let toggled = *ctx
-                        .get_child_mut(id)
-                        .access()
-                        .chain(ToggleButton::<Style::Button>::state)
-                        .get();
-                    if toggled {
+                    if open {
                         for (i, option) in self.options.iter().enumerate() {
-                            let id = ctx.insert_child(Button::<Style::Button>::new());
+                            let id = ctx.insert_child(ToggleButton::<Style::Button>::new());
 
                             ctx.get_child_mut(id)
                                 .access()
                                 .chain(Widget::first_child)
                                 .chain(TextField::<Style::TextField>::text)
                                 .put(option.name.clone());
+                            ctx.access_child(id)
+                                .chain(Widget::first_child)
+                                .configure(|config| {
+                                    config.set_size_hint(
+                                        SizeHint::External(size.x),
+                                        SizeHint::External(size.y),
+                                    );
+                                });
 
                             // Button::text.put(ctx.get_mut(id), option.name.clone());
                             self.opt_map.insert(id, i);
@@ -85,7 +127,9 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
                     }
                 }
             }
+            // TODO: the 'reset' button
 
+            // Handle any option buttons
             if let Some(opt_idx) = self.opt_map.get(&id) {
                 if kind == EventKind::Press {
                     let opt = self.options[*opt_idx].clone();
@@ -98,26 +142,23 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
                         .chain(ToggleButton::<Style::Button>::state)
                         .put(false);
 
-                    self.value = Some(opt.value.clone());
+                    self.value = opt.value.clone();
 
                     self.close(ctx);
                 }
             }
         }
-    }
-
-    /*
-    fn determine_size(&self, drawer: &mut dyn ContextFreeGuiDrawer) -> Option<Vec2> {
-        let mut max_x = None;
-        let mut max_y = None;
-        for SelectOption { name, value: _ } in &self.options {
-            let (x, y) = drawer.text_size(&name);
-            max_x = max_x.or(Some(x)).map(|max_x| max_x.max(x));
-            max_y = max_y.or(Some(y)).map(|max_y| max_y.max(y));
+        // Toggle button with current option if applicable
+        if open {
+            for (id, opt_idx) in self.opt_map.iter() {
+                let option_value = &self.options[*opt_idx].value;
+                ctx.get_child_mut(*id)
+                    .access()
+                    .chain(ToggleButton::<Style::Button>::state)
+                    .put(*option_value == self.value);
+            }
         }
-        max_y.and_then(|max_y| max_x.and_then(|max_x| Some((max_x, max_y))))
     }
-    */
 
     fn captures(&self) -> Capture {
         Capture {
@@ -125,4 +166,30 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
             keyboard: false,
         }
     }
+}
+
+// --------
+// Lenses
+// --------
+
+#[derive(Clone)]
+pub struct MainButtonLens<Style> {
+    _marker: std::marker::PhantomData<Style>,
+}
+impl<Style: SelectStyle> Lens for MainButtonLens<Style> {
+    type Source = Widget;
+    type Target = Widget;
+    fn get<'a>(&self, w: &'a Widget) -> &'a Widget {
+        let id = w.downcast_ref::<Select<Style>>().unwrap().main_button_id();
+        &w.children()[&id]
+    }
+    fn get_mut<'a>(&self, w: &'a mut Widget) -> &'a mut Widget {
+        let id = w.downcast_mut::<Select<Style>>().unwrap().main_button_id();
+        w.get_child_mut(id)
+    }
+}
+impl<Style> Select<Style> {
+    pub const main_button: MainButtonLens<Style> = MainButtonLens {
+        _marker: std::marker::PhantomData,
+    };
 }

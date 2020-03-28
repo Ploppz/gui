@@ -86,6 +86,4 @@ impl GuiDrawer for NoDrawer {
     }
 }
 
-pub enum WidgetOp {
-    Resize { id: Id, size: Vec2 },
-}
+pub enum WidgetOp {}

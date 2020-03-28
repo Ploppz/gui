@@ -20,6 +20,9 @@ impl<Style: TextFieldStyle> TextField<Style> {
     }
 }
 impl<Style: TextFieldStyle> Interactive for TextField<Style> {
+    fn init(&mut self, ctx: &mut WidgetContext) -> WidgetConfig {
+        WidgetConfig::default().size_hint(SizeHint::Intrinsic, SizeHint::Intrinsic)
+    }
     fn captures(&self) -> Capture {
         Capture {
             mouse: false,

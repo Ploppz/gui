@@ -40,6 +40,8 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
 
     /// If the widget has some sort of intrinsic size, returns Some.
     /// Anything whose real size depends on the drawer (text, sprites, ..).
+    /// NOTE: Only basic 'leaf' widgets like text need to implement this - it's not like it must be
+    /// implemented on
     /// Default returns None.
     fn determine_size(&self, _drawer: &mut dyn TextCalculator) -> Option<Vec2> {
         None
