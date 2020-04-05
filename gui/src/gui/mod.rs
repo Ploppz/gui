@@ -1,4 +1,5 @@
 use crate::*;
+use bimap::BiMap;
 use indexmap::IndexMap;
 use slog::Logger;
 use std::{cell::RefCell, rc::Rc};
@@ -27,17 +28,18 @@ impl<D: GuiDrawer> AsId<D> for Id {
 }
 impl<D: GuiDrawer> AsId<D> for String {
     fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
-        gui.aliases.get(self).map(|x| *x)
+        gui.aliases.get_by_left(self).map(|x| *x)
     }
 }
 impl<D: GuiDrawer> AsId<D> for &String {
     fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
-        gui.aliases.get(*self).map(|x| *x)
+        gui.aliases.get_by_left(*self).map(|x| *x)
     }
 }
 impl<D: GuiDrawer> AsId<D> for &str {
     fn resolve(&self, gui: &Gui<D>) -> Option<Id> {
-        gui.aliases.get(*self).map(|x| *x)
+        // TODO: fix get_by_left so that &str can be used
+        gui.aliases.get_by_left(&format!("{}", self)).map(|x| *x)
     }
 }
 
@@ -89,7 +91,7 @@ pub struct Gui<D> {
     screen: (f32, f32),
     // Why option: need to take it out of Gui when we call GuiDrawer::update
     drawer: Option<D>,
-    pub aliases: IndexMap<String, Id>,
+    pub aliases: BiMap<String, Id>,
     pub internal: Rc<RefCell<GuiInternal>>,
 }
 
@@ -103,8 +105,11 @@ impl<D: GuiDrawer> Gui<D> {
             drawer: Some(drawer),
             screen: (0.0, 0.0),
             internal,
-            aliases: IndexMap::new(),
+            aliases: BiMap::new(),
         }
+    }
+    pub fn get_alias(&self, id: Id) -> Option<&String> {
+        self.aliases.get_by_right(&id)
     }
     pub fn shared(&self) -> GuiShared {
         self.internal.clone()
