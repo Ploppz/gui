@@ -127,7 +127,6 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
                     }
                 }
             }
-            // TODO: the 'reset' button
 
             // Handle any option buttons
             if let Some(opt_idx) = self.opt_map.get(&id) {
