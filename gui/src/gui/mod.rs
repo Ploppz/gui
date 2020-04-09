@@ -108,9 +108,6 @@ impl<D: GuiDrawer> Gui<D> {
             aliases: BiMap::new(),
         }
     }
-    pub fn get_alias(&self, id: Id) -> Option<&String> {
-        self.aliases.get_by_right(&id)
-    }
     pub fn shared(&self) -> GuiShared {
         self.internal.clone()
     }

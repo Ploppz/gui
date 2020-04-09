@@ -21,6 +21,7 @@ pub struct Select<Style> {
     pub style: Style,
 
     // runtime state
+    #[lens]
     value: Option<String>,
     /// map from ID to option index. If the index is None, it means the button is the reset button.
     opt_map: IndexMap<Id, usize>,
@@ -140,6 +141,10 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
                     btn.access()
                         .chain(ToggleButton::<Style::Button>::state)
                         .put(false);
+
+                    if opt.value != self.value {
+                        ctx.push_event(EventKind::change(Self::value));
+                    }
 
                     self.value = opt.value.clone();
 

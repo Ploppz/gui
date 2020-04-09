@@ -259,4 +259,11 @@ impl<'a, 'b> WidgetContext<'a, 'b> {
     pub fn access_child(&mut self, id: Id) -> LensRoot {
         LensRoot::new(&mut self.children[&id], self.gui.clone())
     }
+    /// Push event to Gui's global buffer. Fills in ID of self.
+    pub fn push_event(&self, kind: EventKind) {
+        self.gui.borrow_mut().push_event(Event {
+            id: self.self_id,
+            kind,
+        })
+    }
 }
