@@ -1,6 +1,6 @@
 [package]
 name = "gui"
-version = "0.1.26"
+version = "0.1.27"
 authors = ["Erlend Langseth <3rlendhl@gmail.com>"]
 edition = "2018"
 
