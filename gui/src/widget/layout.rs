@@ -43,12 +43,12 @@ impl WidgetConfig {
         layout_direction: Axis,
         layout_wrap: bool,
         layout_cross_align: Anchor,
-        _layout_main_margin: f32,
+        layout_main_margin: f32,
     ) -> Self {
         self.layout_direction = layout_direction;
         self.layout_wrap = layout_wrap;
         self.layout_cross_align = layout_cross_align;
-        self.layout_main_margin = self.layout_main_margin;
+        self.layout_main_margin = layout_main_margin;
         self
     }
     pub fn layout_direction(mut self, value: Axis) -> Self {
@@ -85,17 +85,25 @@ impl WidgetConfig {
         self.size_hint.y = SizeHint::External(h);
         self
     }
-    pub fn set_size(&mut self, w: f32, h: f32) {
+    pub fn set_size(&mut self, w: f32, h: f32) -> &mut Self {
         self.size_hint.x = SizeHint::External(w);
         self.size_hint.y = SizeHint::External(h);
+        self
     }
-    pub fn set_width(&mut self, w: f32) {
+    pub fn set_width(&mut self, w: f32) -> &mut Self {
         self.size_hint.x = SizeHint::External(w);
+        self
     }
-    pub fn set_height(&mut self, h: f32) {
+    pub fn set_height(&mut self, h: f32) -> &mut Self {
         self.size_hint.y = SizeHint::External(h);
+        self
     }
     pub fn padding(mut self, top: f32, bot: f32, left: f32, right: f32) -> Self {
+        self.padding.min = Vec2::new(left, top);
+        self.padding.max = Vec2::new(right, bot);
+        self
+    }
+    pub fn set_padding(&mut self, top: f32, bot: f32, left: f32, right: f32) -> &mut Self {
         self.padding.min = Vec2::new(left, top);
         self.padding.max = Vec2::new(right, bot);
         self

@@ -26,7 +26,14 @@ pub trait Interactive: Any + std::fmt::Debug + Send + Sync {
 
     /// Returns information whether this widget will stop mouse events and state
     /// from reaching other parts of the application.
-    fn captures(&self) -> Capture;
+    /// By default it does not capture anything. This is the most common scenario for composite
+    /// widgets. Note that children of this widget might still capture mouse and/or keyboard.
+    fn captures(&self) -> Capture {
+        Capture {
+            mouse: false,
+            keyboard: false,
+        }
+    }
 
     /// Defines an area which is considered "inside" a widget - for checking mouse hover etc.
     /// Provided implementation simply checks whether mouse is inside the boundaries, where `pos`

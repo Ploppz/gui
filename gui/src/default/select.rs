@@ -83,11 +83,12 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
             .chain(Button::<Style::Button>::text_field)
             .configure(|config| {
                 config.set_size_hint(SizeHint::External(size.x), SizeHint::External(size.y));
+                config.set_padding(2.0, 2.0, 2.0, 2.0);
             });
 
         WidgetConfig::default()
             // .padding(4.0, 4.0, 6.0, 6.0)
-            .layout(Axis::Y, false, Anchor::Min, 2.0)
+            .layout(Axis::Y, false, Anchor::Min, 0.0)
     }
     fn update(&mut self, _id: Id, local_events: Vec<Event>, ctx: &mut WidgetContext) {
         // Always ensure that all children have the same width
