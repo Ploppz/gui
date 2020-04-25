@@ -2,7 +2,9 @@ use crate::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct WidgetConfig {
-    /// Optional positioning; makes this widget not participate in its siblings' layout
+    /// Optional positioning; makes this widget not participate in its siblings' layout.
+    /// If `Some`, the layer of this widget will be incremented relative to its parent.
+    /// This means that it will show on a layer above.
     pub place: Option<Placement>,
     /// The axis along which to stack children
     pub layout_direction: Axis,
@@ -45,6 +47,19 @@ impl WidgetConfig {
         layout_cross_align: Anchor,
         layout_main_margin: f32,
     ) -> Self {
+        self.layout_direction = layout_direction;
+        self.layout_wrap = layout_wrap;
+        self.layout_cross_align = layout_cross_align;
+        self.layout_main_margin = layout_main_margin;
+        self
+    }
+    pub fn set_layout(
+        &mut self,
+        layout_direction: Axis,
+        layout_wrap: bool,
+        layout_cross_align: Anchor,
+        layout_main_margin: f32,
+    ) -> &mut Self {
         self.layout_direction = layout_direction;
         self.layout_wrap = layout_wrap;
         self.layout_cross_align = layout_cross_align;

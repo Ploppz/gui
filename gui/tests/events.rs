@@ -1,15 +1,24 @@
 use gui::{lens::*, test_common::*, *};
 // use slog::{o, Discard, Logger};
 
-/// Test whether the layout alg completes in one single update.
+/// (utility function) Test whether the layout alg completes in one single update.
 fn test_idempotence(gui: &mut TestGui, initial_events: Option<Vec<Event>>) {
     let initial_events = initial_events.unwrap_or_else(|| gui.update().0);
     assert!(
         initial_events.len() > 0,
         "TEST ERROR: the premise of the test is that the initial update does yield some errors"
     );
+    // Ignore input events - we are only interested in events that might be related to the layout
+    // alg
     for _ in 0..4 {
         let (events, _) = gui.update();
+        let events: Vec<_> = events
+            .into_iter()
+            .filter(|event| match event.kind {
+                EventKind::Change { .. } => true,
+                _ => false,
+            })
+            .collect();
         if !events.is_empty() {
             use std::fmt::Write;
             let mut s = "Events:\n".to_string();
@@ -33,18 +42,18 @@ fn test_fixture_idempotence() {
     test_idempotence(&mut fix.gui, None);
 }
 #[test]
-fn test_select_idempotence() {
-    // Test idemptence of layout algorithm with one dropdown button after clicking it.
-    //
+fn test_select() {
     let mut gui = TestGui::new();
-    gui.insert_in_root(Button::new());
     let id = gui.insert_in_root(
         Select::new()
-            .option("one".to_string(), "one".to_string())
-            .option("two".to_string(), "two".to_string()),
+            .with_option("one".to_string(), "one".to_string())
+            .with_option("two".to_string(), "two".to_string()),
     );
     gui.update();
 
+    //
+    // Test idemptence of layout algorithm with one dropdown button after clicking it.
+    //
     let click_pos =
         *gui.access(id).chain(Widget::pos).get() + *gui.access(id).chain(Widget::size).get() / 2.0;
 
@@ -70,23 +79,23 @@ fn test_select_idempotence() {
     // If any of the above asserts fail it might mean we failed to press the button
     // Setup is done, now test idemptence:
     println!("There should be no more events now");
+
+    print_widget_tree(&*gui);
     test_idempotence(&mut gui, Some(events));
-}
 
-#[test]
-fn test_select_release_does_nothing() {
-    // releasing the mouse button does nothing (only pressing)
-    let mut gui = TestGui::new();
-    let id = gui.insert_in_root(
-        Select::new()
-            .option("one".to_string(), "one".to_string())
-            .option("two".to_string(), "two".to_string()),
-    );
-    gui.update();
-    let click_pos =
-        *gui.access(id).chain(Widget::pos).get() + *gui.access(id).chain(Widget::size).get() / 2.0;
-
-    let (_, _) = gui.press(click_pos);
+    // Check that the layers are correct.
+    assert_eq!(gui.access(id).get_widget().layer, 0);
+    let opt_id = gui
+        .access(id)
+        .get_widget()
+        .downcast_ref::<Select>()
+        .unwrap()
+        .get_widget_for_option("one")
+        .unwrap();
+    assert_eq!(gui.get(opt_id).layer, 1);
+    //
+    // Test that releasing the mouse button does nothing
+    //
     let (events, _) = gui.release();
     assert_eq!(
         events

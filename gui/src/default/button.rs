@@ -92,6 +92,9 @@ use crate::widget::lenses::FirstChildLens;
 impl<Style> Button<Style> {
     pub const text_field: FirstChildLens = FirstChildLens;
 }
+impl<Style> ToggleButton<Style> {
+    pub const text_field: FirstChildLens = FirstChildLens;
+}
 
 #[cfg(test)]
 mod test {

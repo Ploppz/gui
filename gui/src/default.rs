@@ -26,7 +26,6 @@ pub trait StyleBound: Default + Send + Sync + Clone + std::fmt::Debug + 'static 
 
 impl<T> StyleBound for T where T: Default + Send + Sync + Clone + std::fmt::Debug + 'static {}
 
-impl ContainerStyle for () {}
 impl TextFieldStyle for () {}
 impl ButtonStyle for () {
     type TextField = ();

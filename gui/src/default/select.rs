@@ -40,12 +40,46 @@ impl<Style: SelectStyle> Select<Style> {
             style: Style::default(),
         }
     }
-    pub fn option(mut self, name: String, value: String) -> Self {
+    pub fn with_option(mut self, name: String, value: String) -> Self {
         self.options.push(SelectOption {
             name,
             value: Some(value),
         });
         self
+    }
+    pub fn open(&mut self, ctx: &mut WidgetContext) {
+        let container_id = ctx.insert_child(Container::new());
+        ctx.access_child(container_id).configure(|config| {
+            config.set_placement(Placement::fixed(0.0, 0.0));
+            config.set_layout(Axis::Y, false, Anchor::Min, 2.0);
+        });
+        let size = self.max_size(ctx);
+        for (i, option) in self.options.iter().enumerate() {
+            let id = ctx
+                .get_child_mut(container_id)
+                .insert_child(ToggleButton::<Style::Button>::new());
+
+            ctx.access_child(container_id)
+                .chain(Widget::child(id))
+                .chain(ToggleButton::<Style::Button>::text_field)
+                .chain(TextField::<Style::TextField>::text)
+                .put(option.name.clone());
+            ctx.access_child(container_id)
+                .chain(Widget::child(id))
+                .chain(ToggleButton::<Style::Button>::text_field)
+                .configure(|config| {
+                    config.set_size_hint(SizeHint::External(size.x), SizeHint::External(size.y));
+                });
+
+            if self.value == option.value {
+                ctx.access_child(container_id)
+                    .chain(Widget::child(id))
+                    .chain(ToggleButton::<Style::Button>::state)
+                    .put(true);
+            }
+
+            self.opt_map.insert(id, i);
+        }
     }
     pub fn close(&mut self, ctx: &mut WidgetContext) {
         let to_remove = ctx.keys().cloned().collect::<Vec<_>>();
@@ -72,6 +106,20 @@ impl<Style: SelectStyle> Select<Style> {
             })
             .unwrap()
     }
+    // #[cfg(test)]
+    pub fn get_widget_for_option(&self, value: &str) -> Option<Id> {
+        let target_opt_idx = self
+            .options
+            .iter()
+            .enumerate()
+            .find(|o| o.1.value == self.value)
+            .unwrap()
+            .0;
+        self.opt_map
+            .iter()
+            .find(|(id, opt_idx)| **opt_idx == target_opt_idx)
+            .map(|(id, _)| *id)
+    }
 }
 
 impl<Style: SelectStyle> Interactive for Select<Style> {
@@ -92,40 +140,19 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
     }
     fn update(&mut self, _id: Id, local_events: Vec<Event>, ctx: &mut WidgetContext) {
         // Always ensure that all children have the same width
-
-        let open = *ctx
+        let is_open = !*ctx
             .get_child_mut(self.main_button_id)
             .access()
             .chain(ToggleButton::<Style::Button>::state)
             .get();
-        let size = self.max_size(ctx);
         for Event { id, kind } in local_events.iter().cloned() {
             // Toggle dropdown list
             if id == self.main_button_id {
                 if kind.is_change(ToggleButton::<Style::Button>::state) {
-                    if open {
-                        for (i, option) in self.options.iter().enumerate() {
-                            let id = ctx.insert_child(ToggleButton::<Style::Button>::new());
-
-                            ctx.get_child_mut(id)
-                                .access()
-                                .chain(Widget::first_child)
-                                .chain(TextField::<Style::TextField>::text)
-                                .put(option.name.clone());
-                            ctx.access_child(id)
-                                .chain(Widget::first_child)
-                                .configure(|config| {
-                                    config.set_size_hint(
-                                        SizeHint::External(size.x),
-                                        SizeHint::External(size.y),
-                                    );
-                                });
-
-                            // Button::text.put(ctx.get_mut(id), option.name.clone());
-                            self.opt_map.insert(id, i);
-                        }
-                    } else {
+                    if is_open {
                         self.close(ctx);
+                    } else {
+                        self.open(ctx);
                     }
                 }
             }
@@ -143,10 +170,11 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
                         .chain(ToggleButton::<Style::Button>::state)
                         .put(false);
 
+                    // TODO: Also somehow automatically emit events on change of fields?
+                    // Somehow force the use of lenses?
                     if opt.value != self.value {
                         ctx.push_event(EventKind::change(Self::value));
                     }
-
                     self.value = opt.value.clone();
 
                     self.close(ctx);
@@ -154,7 +182,7 @@ impl<Style: SelectStyle> Interactive for Select<Style> {
             }
         }
         // Toggle button with current option if applicable
-        if open {
+        if is_open {
             for (id, opt_idx) in self.opt_map.iter() {
                 let option_value = &self.options[*opt_idx].value;
                 ctx.get_child_mut(*id)
@@ -192,6 +220,11 @@ impl<Style: SelectStyle> Lens for MainButtonLens<Style> {
         let id = w.downcast_mut::<Select<Style>>().unwrap().main_button_id();
         w.get_child_mut(id)
     }
+}
+#[derive(Clone)]
+pub struct OptionLens<Style> {
+    value: Option<String>,
+    _marker: std::marker::PhantomData<Style>,
 }
 impl<Style> Select<Style> {
     pub const main_button: MainButtonLens<Style> = MainButtonLens {

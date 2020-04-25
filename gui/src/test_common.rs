@@ -106,7 +106,7 @@ impl TestFixture {
                 .chain(TextField::text)
                 .put("text".to_string());
 
-            let text_size = NoDrawer.text_calc(&mut ()).text_size("text");
+            let text_size = NoDrawer.text_calc(0, &mut ()).text_size("text");
 
             // expected button size.
             // Per now, buttons have constant height, and padding in X axis

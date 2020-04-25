@@ -6,8 +6,8 @@ fn test_select_on_click() {
     let mut gui = TestGui::new();
     let select_id = gui.insert_in_root(
         Select::new()
-            .option("One".into(), "one".into())
-            .option("Two".into(), "two".into()),
+            .with_option("One".into(), "one".into())
+            .with_option("Two".into(), "two".into()),
     );
 
     // Hard-code the expected size of the text fields

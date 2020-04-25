@@ -33,14 +33,17 @@ pub struct Widget {
     /// Any mutation to `pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub pos: Vec2,
-    /// Current relative (to parent) position as calculated by layout algorithm
+    /// Current relative (to parent) position as calculated by layout algorithm.
     /// Any mutation to `rel_pos` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub rel_pos: Vec2,
-    /// Current size as calculated by layout algorithm
+    /// Current size as calculated by layout algorithm.
     /// Any mutation to `size` has no effect except possibly generating spurious `ChangeSize` events.
     /// (should be read-only outside `gui`)
     pub size: Vec2,
+    /// Current layer as calculated by layout algorithm.
+    /// Depends only on `WidgetConfig::place`
+    pub layer: u32,
 
     pub config: WidgetConfig,
 
@@ -73,6 +76,7 @@ impl Widget {
             pos: Vec2::zero(),
             rel_pos: Vec2::zero(),
             size: Vec2::new(10.0, 10.0),
+            layer: 0,
             config,
             gui,
 
@@ -173,7 +177,8 @@ impl Widget {
 
         capture
     }
-    /// Calculates absolute positions
+    /// Everything that needs to be calculated top-down:
+    /// absolute positions and layer numbers
     pub(crate) fn update_top_down(&mut self) {
         let pos = self.pos;
         for child in self.children.values_mut() {
@@ -183,6 +188,11 @@ impl Widget {
                     .borrow_mut()
                     .push_event(Event::change(child.id, Widget::pos));
                 child.pos = new_pos;
+            }
+            if child.config.place.is_some() {
+                child.layer = self.layer + 1;
+            } else {
+                child.layer = self.layer;
             }
             child.update_top_down();
         }

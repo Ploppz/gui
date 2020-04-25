@@ -90,7 +90,7 @@ impl Widget {
     pub const pos: PosLens = PosLens;
     pub const first_child: FirstChildLens = FirstChildLens;
     pub const id: IdLens = IdLens;
-    pub fn child_lens(id: usize) -> ChildLens {
+    pub fn child(id: usize) -> ChildLens {
         ChildLens { id }
     }
 }
