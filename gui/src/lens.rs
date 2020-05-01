@@ -18,12 +18,12 @@
 //! # use indexmap::IndexMap;
 //! # let mut gui = Gui::new(NoDrawer, &mut ());
 //! # let gui_shared = gui.shared();
-//! # let mut parent_id = gui.insert_in_root(Container::<()>::new());
+//! # let mut parent_id = gui.insert_in_root(Container::new());
 //! # let mut widget = gui.get_mut(parent_id);
 //! let id = widget.insert_child(Button::<()>::new());
 //!
 //! widget.access()
-//!     .chain(Widget::child_lens(id)) // <- get Button
+//!     .chain(Widget::child(id)) // <- get Button
 //!     .chain(Widget::first_child)    // <- get TextField of Button
 //!     .chain(TextField::<()>::text)  // <- this is a `LeafLens`
 //!     .put("Click me!".to_string()); // <- mutates text and pushes event internally
