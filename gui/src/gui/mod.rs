@@ -304,7 +304,7 @@ impl<D: GuiDrawer> Gui<D> {
 
         let events = std::mem::replace(&mut self.internal.borrow_mut().events, Vec::new());
 
-        let drawer = self.drawer.take().unwrap();
+        let mut drawer = self.drawer.take().unwrap();
         let ops = drawer.update(self, &events, log, ctx);
         self.drawer = Some(drawer);
         for op in ops {

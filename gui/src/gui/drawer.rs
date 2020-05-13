@@ -17,7 +17,7 @@ pub trait GuiDrawer: Sized {
     fn window_size(&self, ctx: &mut Self::Context) -> Vec2;
     fn transform_mouse(&self, m: Vec2, ctx: &mut Self::Context) -> Vec2;
     fn update(
-        &self,
+        &mut self,
         gui: &Gui<Self>,
         events: &[Event],
         log: Logger,
@@ -73,7 +73,7 @@ impl GuiDrawer for NoDrawer {
         m
     }
     fn update(
-        &self,
+        &mut self,
         _gui: &Gui<Self>,
         _events: &[Event],
         _log: Logger,
