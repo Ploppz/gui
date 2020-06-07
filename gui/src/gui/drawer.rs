@@ -24,7 +24,7 @@ pub trait GuiDrawer: Sized {
         ctx: &mut Self::Context,
     ) -> Vec<WidgetOp>;
 
-    fn text_calc(&self, layer: u32, ctx: &mut Self::Context) -> Self::Calculator;
+    fn text_calc(&mut self, layer: u32, ctx: &mut Self::Context) -> Self::Calculator;
 }
 
 pub trait TextCalculator: 'static + std::fmt::Debug {
@@ -81,7 +81,7 @@ impl GuiDrawer for NoDrawer {
     ) -> Vec<WidgetOp> {
         Vec::new()
     }
-    fn text_calc(&self, _layer: u32, _ctx: &mut Self::Context) -> Self::Calculator {
+    fn text_calc(&mut self, _layer: u32, _ctx: &mut Self::Context) -> Self::Calculator {
         NoTextCalculator
     }
 }

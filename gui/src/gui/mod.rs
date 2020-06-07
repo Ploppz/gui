@@ -96,7 +96,7 @@ pub struct Gui<D> {
 }
 
 impl<D: GuiDrawer> Gui<D> {
-    pub fn new(drawer: D, ctx: &mut D::Context) -> Gui<D> {
+    pub fn new(mut drawer: D, ctx: &mut D::Context) -> Gui<D> {
         let internal = Rc::new(RefCell::new(GuiInternal::new(drawer.text_calc(0, ctx))));
         let mut root = Widget::new(ROOT, Root, internal.clone());
         root.config = root.config.placement(Placement::fixed(0.0, 0.0));
